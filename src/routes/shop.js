@@ -7,7 +7,7 @@ const { db, getSettings } = require('../db');
 const { DIRS, makeReference, safeName } = require('../util');
 const { flash, requireLogin } = require('../middleware');
 const { ownedProductIds } = require('../orders');
-const { buildDelivery } = require('../deliver');
+const { buildDelivery, buildReaderFile, isReadable } = require('../deliver');
 const opay = require('../opay');
 
 const router = express.Router();
@@ -24,7 +24,7 @@ const proofUpload = multer({
 function cartProducts(req) {
   const ids = (req.session.cart || []).filter(Number.isInteger);
   if (!ids.length) return [];
-  return db.prepare(`SELECT * FROM products WHERE is_active = 1 AND id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+  return db.prepare(`SELECT * FROM products WHERE is_active = 1 AND status = 'published' AND id IN (${ids.map(() => '?').join(',')})`).all(...ids);
 }
 
 // ---------- Cart ----------
@@ -43,7 +43,7 @@ router.get('/cart', (req, res) => {
 
 router.post('/cart/add/:id', (req, res) => {
   const id = Number(req.params.id);
-  const p = db.prepare('SELECT id, title, slug FROM products WHERE id = ? AND is_active = 1').get(id);
+  const p = db.prepare("SELECT id, title, slug FROM products WHERE id = ? AND is_active = 1 AND status = 'published'").get(id);
   if (!p) return res.redirect('/');
   req.session.cart = req.session.cart || [];
   if (!req.session.cart.includes(id)) req.session.cart.push(id);
@@ -145,11 +145,14 @@ router.get('/orders', requireLogin, (req, res) => {
 
 // ---------- Library & downloads ----------
 router.get('/library', requireLogin, (req, res) => {
-  const items = db.prepare(`SELECT oi.*, o.reference, o.paid_at, p.title, p.slug, p.cover_file, p.file_type, p.protect, p.author
+  const items = db.prepare(`SELECT oi.*, o.reference, o.paid_at, p.title, p.slug, p.cover_file, p.file_type, p.protect, p.author,
+      p.kind, p.platform, p.version, p.reader_pdf
     FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN products p ON p.id = oi.product_id
     WHERE o.user_id = ? AND o.status = 'paid' ORDER BY o.paid_at DESC`).all(req.user.id);
   const pending = db.prepare(`SELECT COUNT(*) c FROM orders WHERE user_id = ? AND status IN ('pending','awaiting_confirmation')`).get(req.user.id).c;
-  res.render('library', { title: 'My library', items, pending, limit: Number(getSettings().download_limit) || 0 });
+  items.forEach(it => { it.readable = isReadable(it); });
+  const tab = req.query.tab === 'software' ? 'software' : 'book';
+  res.render('library', { title: 'My library', items, tab, pending, limit: Number(getSettings().download_limit) || 0 });
 });
 
 router.get('/download/:itemId', requireLogin, async (req, res, next) => {
@@ -168,6 +171,32 @@ router.get('/download/:itemId', requireLogin, async (req, res, next) => {
     db.prepare('INSERT INTO downloads (order_item_id, user_id, ip, user_agent) VALUES (?, ?, ?, ?)')
       .run(it.id, req.user.id, req.ip, (req.get('user-agent') || '').slice(0, 250));
     res.download(file, `${safeName(it.title)}.zip`);
+  } catch (e) { next(e); }
+});
+
+// ---------- In-app reader ----------
+function readableItem(req) {
+  const it = db.prepare(`SELECT oi.*, o.user_id, o.status, o.reference, p.title, p.cover_file, p.file_type, p.kind, p.reader_pdf
+    FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN products p ON p.id = oi.product_id WHERE oi.id = ?`).get(Number(req.params.itemId));
+  if (!it || it.user_id !== req.user.id || it.status !== 'paid' || !isReadable(it)) return null;
+  return it;
+}
+
+router.get('/read/:itemId', requireLogin, (req, res) => {
+  const it = readableItem(req);
+  if (!it) return res.status(404).render('error', { title: 'Not available', message: 'This book cannot be opened in the reader.' });
+  res.set('Cache-Control', 'private, no-store');
+  res.render('reader', { it });
+});
+
+router.get('/read/:itemId/file', requireLogin, async (req, res, next) => {
+  try {
+    const it = readableItem(req);
+    if (!it) return res.status(404).end();
+    const { file } = await buildReaderFile(it.id);
+    res.set('Cache-Control', 'private, no-transform');
+    res.type('application/pdf');
+    res.sendFile(file);
   } catch (e) { next(e); }
 });
 

@@ -1,0 +1,40 @@
+<%- include('_top') %>
+<div class="two">
+  <div class="stack">
+    <div class="card">
+      <div class="k muted small" style="text-transform:uppercase;letter-spacing:.05em;font-weight:700">Available to withdraw</div>
+      <div class="balance"><%= naira(bal.available) %></div>
+      <p class="small muted">Earned <%= naira(bal.earned) %> · Paid <%= naira(bal.paid) %><%= bal.requested ? ' · Processing ' + naira(bal.requested) : '' %><br>
+      You keep <strong><%= 100 - commission %>%</strong> of each sale. Minimum payout: <strong><%= naira(minPayout) %></strong>.</p>
+      <% if (bal.requested) { %>
+        <div class="flash info" style="margin:0">A payout of <%= naira(bal.requested) %> is being processed.</div>
+      <% } else if (!author.bank_account_number) { %>
+        <div class="flash info" style="margin:0">Add your bank details below to receive royalties.</div>
+      <% } else if (bal.available < minPayout) { %>
+        <div class="small muted"><%= naira(minPayout - bal.available) %> more to reach the payout threshold.</div>
+        <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:.5rem"><div style="height:100%;width:<%= Math.min(100, Math.round(bal.available / (minPayout || 1) * 100)) %>%;background:var(--accent)"></div></div>
+      <% } else { %>
+        <form method="post" action="/author/payouts/request" data-confirm="Request a payout of <%= naira(bal.available) %> to <%= author.bank_name %> <%= author.bank_account_number %>?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn accent">Request payout of <%= naira(bal.available) %></button></form>
+      <% } %>
+    </div>
+    <div class="card">
+      <h2>Payout history</h2>
+      <% if (!payouts.length) { %><p class="muted" style="margin:0">No payouts yet.</p><% } else { %>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th class="num">Amount</th><th>Status</th><th>Reference</th></tr></thead><tbody>
+      <% payouts.forEach(function(p){ %><tr><td class="small"><%= p.created_at.slice(0,10) %><div class="muted"><%= p.trigger === 'auto' ? 'Automatic' : 'Requested' %></div></td><td class="num"><%= naira(p.amount_kobo) %></td>
+        <td><span class="status <%= p.status === 'paid' ? 'paid' : p.status === 'rejected' ? 'rejected' : 'awaiting_confirmation' %>"><%= p.status === 'requested' ? 'processing' : p.status %></span></td>
+        <td class="small mono"><%= p.transfer_reference || '' %><% if (p.admin_note) { %><div class="muted" style="font-family:var(--sans)"><%= p.admin_note %></div><% } %></td></tr><% }) %>
+      </tbody></table></div><% } %>
+    </div>
+  </div>
+  <form class="card" id="bank" method="post" action="/author/bank">
+    <h2>Payout settings</h2>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label>Bank</label><input type="text" name="bank_name" value="<%= author.bank_name || '' %>" placeholder="e.g. GTBank, OPay, Access"></div>
+    <div class="field"><label>Account number</label><input type="text" name="bank_account_number" inputmode="numeric" maxlength="10" value="<%= author.bank_account_number || '' %>"></div>
+    <div class="field"><label>Account name</label><input type="text" name="bank_account_name" value="<%= author.bank_account_name || '' %>"></div>
+    <label class="check"><input type="checkbox" name="auto_payout" value="1" <%= author.auto_payout ? 'checked' : '' %>><span>Pay me automatically<br><span class="hint">A payout is requested for you as soon as your balance reaches <%= naira(minPayout) %>. Untick to request payouts yourself.</span></span></label>
+    <button class="btn" style="margin-top:1rem">Save payout settings</button>
+  </form>
+</div>
+<%- include('_bottom') %>

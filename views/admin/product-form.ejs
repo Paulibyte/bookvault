@@ -1,18 +1,63 @@
 <%- include('_top') %>
-<div class="section-title"><h1 style="margin:0"><%= p.id ? 'Edit product' : 'Add product' %></h1><a href="/admin/products" class="small">← All products</a></div>
-<form method="post" action="/admin/products/<%= p.id || 'new' %>?_csrf=<%= csrf %>" enctype="multipart/form-data" data-once data-upload style="max-width:860px">
+<% const sw = p.kind === 'software'; %>
+<div class="section-title"><h1 style="margin:0"><%= title %></h1><a href="/admin/products<%= p.status === 'pending' ? '?f=review' : '' %>" class="small">← Products</a></div>
+
+<% if (author) { %>
+<div class="card" style="max-width:860px;margin-bottom:1.25rem">
+  <div class="spread"><h2 style="margin:0">Submitted by <a href="/admin/authors/<%= author.id %>"><%= author.pen_name %></a></h2><span class="badge <%= p.status %>"><%= p.status === 'pending' ? 'awaiting review' : p.status %></span></div>
+  <p class="small muted">Legal name: <%= author.legal_name %> · <%= author.email %> · <%= author.phone %> · Author status: <span class="badge <%= author.status %>"><%= author.status %></span><%= p.submitted_at ? ' · Submitted ' + p.submitted_at : '' %></p>
+  <% if (cr) { %>
+  <h3 style="margin-top:1rem">Copyright declaration</h3>
+  <dl class="kv">
+    <dt>Rights basis</dt><dd><%= { sole: 'Sole author and copyright owner', coauthor: 'Co-author (all co-authors consented)', licensed: 'Holds publishing rights under licence' }[cr.rights_basis] || '—' %></dd>
+    <% if (cr.co_authors) { %><dt>Co-authors</dt><dd><%= cr.co_authors %></dd><% } %>
+    <% if (cr.rights_holder) { %><dt>Copyright owner</dt><dd><%= cr.rights_holder %></dd><% } %>
+    <dt>Publisher / ISBN</dt><dd><%= cr.publisher || '—' %> / <%= cr.isbn || '—' %></dd>
+    <dt>Year · edition</dt><dd><%= cr.year_published || '—' %> · <%= cr.edition || '—' %></dd>
+    <dt>Previously published</dt><dd><%= cr.previously_published === 'yes' ? 'Yes' : 'No' %></dd>
+    <dt>Declarations</dt><dd>✓ Original/has rights · ✓ Third-party material cleared · ✓ Grants distribution licence · ✓ Accepts liability</dd>
+    <dt>Signed</dt><dd><%= cr.signature %> — <%= (cr.signed_at || '').replace('T', ' ').slice(0, 16) %> UTC · IP <%= cr.ip %></dd>
+    <% if (p.copyright_file) { %><dt>Supporting document</dt><dd><a href="/admin/doc/<%= p.copyright_file %>" target="_blank">Open document</a></dd><% } %>
+  </dl>
+  <% } %>
+  <div class="row" style="margin-top:1rem"><a class="btn ghost sm" href="/admin/products/<%= p.id %>/original">⬇ Download original file to check it</a></div>
+  <% if (p.status !== 'published') { %>
+  <form method="post" action="/admin/products/<%= p.id %>/review" style="margin-top:1rem" class="stack">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field" style="margin:0"><label>Note to author <span class="hint">(required when sending back)</span></label><input type="text" name="note" placeholder="e.g. Cover image is blurry; please re-upload"></div>
+    <div class="row">
+      <button class="btn green" name="decision" value="approve" data-confirm="Publish this title in the store?">✓ Approve &amp; publish</button>
+      <button class="btn danger" name="decision" value="reject">Send back to author</button>
+    </div>
+  </form>
+  <% } %>
+</div>
+<% } %>
+
+<form method="post" action="/admin/products/<%= p.id || 'new' %>?_csrf=<%= csrf %>" enctype="multipart/form-data" data-once style="max-width:860px">
+  <fieldset>
+    <legend>Type</legend>
+    <div class="radio-cards" style="margin:0 0 1rem">
+      <label><input type="radio" name="kind" value="book" <%= !sw ? 'checked' : '' %>><span>📚 Book / course material<small>PDF &amp; Word are watermarked + password-protected</small></span></label>
+      <label><input type="radio" name="kind" value="software" <%= sw ? 'checked' : '' %>><span>💻 Software / app<small>Delivered exactly as uploaded — never stamped</small></span></label>
+    </div>
+  </fieldset>
   <fieldset>
     <legend>Details</legend>
     <div class="field"><label>Title</label><input type="text" name="title" value="<%= p.title || '' %>" required></div>
     <div class="grid2">
-      <div class="field"><label>Author / Lecturer <span class="hint">(optional)</span></label><input type="text" name="author" value="<%= p.author || '' %>"></div>
+      <div class="field"><label><span data-book>Author / Lecturer</span><span data-software hidden>Developer / publisher</span> <span class="hint">(optional)</span></label><input type="text" name="author" value="<%= p.author || '' %>" <%= author ? 'disabled' : '' %>></div>
       <div class="field"><label>Price (₦)</label><input type="text" inputmode="decimal" name="price" value="<%= p.price_kobo != null ? (p.price_kobo / 100) : '' %>" placeholder="e.g. 2500 — use 0 for free" required></div>
+    </div>
+    <div class="grid2" data-software hidden>
+      <div class="field"><label>Platform</label><select name="platform"><% platforms.forEach(function(pl){ %><option <%= p.platform === pl ? 'selected' : '' %>><%= pl %></option><% }) %></select></div>
+      <div class="field"><label>Version</label><input type="text" name="version" value="<%= p.version || '' %>" placeholder="e.g. 2.1"></div>
     </div>
     <div class="grid2">
       <div class="field"><label>Category</label><select name="category_id"><option value="">— None —</option><% categories.forEach(function(c){ %><option value="<%= c.id %>" <%= p.category_id === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %></select></div>
       <div class="field"><label>…or new category</label><input type="text" name="new_category" placeholder="e.g. CEC 411 — Traffic Engineering"></div>
     </div>
-    <div class="field"><label>Description</label><textarea name="description" placeholder="What's inside, which course/level it's for, edition…"><%= p.description || '' %></textarea></div>
+    <div class="field"><label>Description</label><textarea name="description" placeholder="What's inside, which course/level it's for, edition, system requirements…"><%= p.description || '' %></textarea></div>
   </fieldset>
   <fieldset>
     <legend>Files</legend>
@@ -23,13 +68,15 @@
         <input type="file" name="cover" accept="image/*">
       </div>
       <div class="field">
-        <label>Product file <span class="hint">(PDF, Word .docx, ZIP or any file · max <%= maxMb %> MB)</span></label>
+        <label><span data-book>Book file (PDF, Word .docx, ZIP)</span><span data-software hidden>Software file (.zip recommended)</span> <span class="hint">max <%= maxMb %> MB</span></label>
         <% if (p.original_name) { %><div class="small muted" style="margin-bottom:.4rem">Current: <strong><%= p.original_name %></strong> (<%= humanSize(p.file_size) %>) — upload only to replace</div><% } %>
         <input type="file" name="file" <%= p.id ? '' : 'required' %>>
       </div>
     </div>
-    <label class="check"><input type="checkbox" name="protect" value="1" <%= p.protect ? 'checked' : '' %>><span>Watermark with buyer's name and lock with a unique password<br><span class="hint">Applies to PDF and Word (.docx) only. ZIP and other files are delivered as uploaded. Old .doc files: save as .docx first.</span></span></label>
-    <label class="check" style="margin-top:.6rem"><input type="checkbox" name="is_active" value="1" <%= p.is_active ? 'checked' : '' %>><span>Show in store</span></label>
+    <div data-book>
+      <label class="check"><input type="checkbox" name="protect" value="1" <%= p.protect ? 'checked' : '' %>><span>Watermark with buyer's name and lock with a unique password<br><span class="hint">PDF and Word (.docx) only. <%= canConvert ? 'Word books are also converted to PDF so buyers can read them in the app.' : 'Word books can be read in the app once LibreOffice is installed on the server.' %></span></span></label>
+    </div>
+    <label class="check" style="margin-top:.6rem"><input type="checkbox" name="is_active" value="1" <%= p.is_active ? 'checked' : '' %>><span>Show in store <% if (p.status && p.status !== 'published') { %><span class="hint">(only after approval)</span><% } %></span></label>
   </fieldset>
   <div class="row">
     <button class="btn accent" data-busy-text="Uploading… please wait">Save product</button>

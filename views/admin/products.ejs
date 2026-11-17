@@ -1,21 +1,26 @@
 <%- include('_top') %>
-<div class="section-title"><h1 style="margin:0">Products</h1><a class="btn accent" href="/admin/products/new">＋ Add product</a></div>
+<div class="section-title"><h1 style="margin:0">Products</h1><div class="row"><a class="btn ghost" href="/admin/products/new?kind=software">＋ Software</a><a class="btn accent" href="/admin/products/new">＋ Book</a></div></div>
+<div class="tabs-inline">
+  <% [['','All'],['review','Awaiting review' + (reviewCount ? ' (' + reviewCount + ')' : '')],['books','Books'],['software','Software'],['authors','By authors']].forEach(function(t){ %>
+  <a class="chip <%= filter === t[0] ? 'on' : '' %>" href="/admin/products<%= t[0] ? '?f=' + t[0] : '' %>"><%= t[1] %></a><% }) %>
+</div>
 <div class="card">
-<% if (!products.length) { %><div class="empty">No products yet. <a href="/admin/products/new">Upload your first book</a>.</div><% } else { %>
+<% if (!products.length) { %><div class="empty">Nothing here.</div><% } else { %>
 <div class="table-wrap"><table>
-<thead><tr><th></th><th>Title</th><th>Type</th><th>Protection</th><th class="num">Price</th><th class="num">Sold</th><th>Status</th><th></th></tr></thead>
+<thead><tr><th></th><th>Title</th><th>Type</th><th>Protection</th><th class="num">Price</th><th class="num">Sold</th><th>Rating</th><th>Status</th><th></th></tr></thead>
 <tbody>
-<% products.forEach(function(p){ const canProtect = p.file_type === 'pdf' || p.file_type === 'docx'; %>
+<% products.forEach(function(p){ const canProtect = p.kind !== 'software' && (p.file_type === 'pdf' || p.file_type === 'docx'); %>
 <tr>
   <td style="width:52px"><%- include('../partials/thumb', { p: p }) %></td>
-  <td><strong><%= p.title %></strong><div class="muted small"><%= p.category || 'Uncategorised' %> · <%= humanSize(p.file_size) %><%= p.pages ? ' · ' + p.pages + ' pages' : '' %></div></td>
-  <td><span class="badge <%= p.file_type %>"><%= p.file_type %></span></td>
-  <td class="small"><%= canProtect ? (p.protect ? '🔒 Watermark + password' : 'Off') : 'As-is' %></td>
+  <td><strong><%= p.title %></strong><div class="muted small"><%= p.author_name ? '✍️ ' + p.author_name : (p.author || 'Store') %> · <%= p.category || 'Uncategorised' %> · <%= humanSize(p.file_size) %><%= p.pages ? ' · ' + p.pages + ' pp' : '' %></div></td>
+  <td><span class="badge <%= p.kind === 'software' ? 'software' : p.file_type %>"><%= p.kind === 'software' ? 'app' : p.file_type %></span></td>
+  <td class="small"><%= canProtect ? (p.protect ? '🔒 On' : 'Off') : 'As-is' %><%= p.file_type === 'docx' && p.reader_pdf ? ' · 📖' : '' %></td>
   <td class="num"><%= p.price_kobo ? naira(p.price_kobo) : 'Free' %></td>
   <td class="num"><%= p.sold %></td>
-  <td><span class="status <%= p.is_active ? 'paid' : 'cancelled' %>"><%= p.is_active ? 'Live' : 'Hidden' %></span></td>
+  <td><%- p.rating_count ? include('../partials/stars', { r: p.rating_avg, n: p.rating_count }) : '<span class="muted small">—</span>' %></td>
+  <td><% if (p.status !== 'published') { %><span class="badge <%= p.status %>"><%= p.status === 'pending' ? 'needs review' : p.status %></span><% } else { %><span class="status <%= p.is_active ? 'paid' : 'cancelled' %>"><%= p.is_active ? 'Live' : 'Hidden' %></span><% } %></td>
   <td class="num" style="white-space:nowrap">
-    <a class="btn sm ghost" href="/admin/products/<%= p.id %>">Edit</a>
+    <a class="btn sm <%= p.status === 'pending' ? 'accent' : 'ghost' %>" href="/admin/products/<%= p.id %>"><%= p.status === 'pending' ? 'Review' : 'Edit' %></a>
     <% if (canProtect && p.protect) { %><form method="post" action="/admin/products/<%= p.id %>/test" class="inline" data-once><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm ghost" title="Generate a watermarked copy for yourself">Test copy</button></form><% } %>
   </td>
 </tr>

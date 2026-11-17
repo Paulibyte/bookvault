@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title><%= it.title %> · <%= settings.store_name %></title>
+<meta name="theme-color" content="#0b1b4f">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/css/reader.css?v=3">
+<script type="module" src="/js/reader.mjs?v=3"></script>
+</head>
+<body>
+<div id="reader"
+     data-item="<%= it.id %>"
+     data-file="/read/<%= it.id %>/file"
+     data-pw="<%= it.file_password %>"
+     data-title="<%= it.title %>"
+     data-cover="<%= it.cover_file ? '/cover/' + it.cover_file : '' %>">
+  <header class="rbar">
+    <a class="rbtn" href="/library" data-back title="Back to library" aria-label="Back">←</a>
+    <div class="rtitle"><strong><%= it.title %></strong><span id="pageInfo">Opening…</span></div>
+    <div class="rtools">
+      <button class="rbtn" id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+      <button class="rbtn" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+      <button class="rbtn" id="theme" title="Night mode" aria-label="Night mode">☾</button>
+      <button class="rbtn wide" id="saveOffline" title="Keep this book on this device">⤓ <span>Save offline</span></button>
+      <button class="rbtn wide accent" id="listen" title="Read aloud">🎧 <span>Listen</span></button>
+    </div>
+  </header>
+
+  <main id="pages" aria-live="polite"><div class="rmsg" id="msg">Opening your book…</div></main>
+
+  <nav class="jump">
+    <button class="rbtn" id="prev" aria-label="Previous page">‹</button>
+    <input id="pageNum" type="number" min="1" value="1" aria-label="Page number"><span id="pageTotal">/ –</span>
+    <button class="rbtn" id="next" aria-label="Next page">›</button>
+  </nav>
+
+  <section class="tts" id="tts" hidden>
+    <div class="tts-now" id="ttsNow">Ready to read aloud.</div>
+    <div class="tts-ctrl">
+      <button class="rbtn" id="ttsPrev" title="Previous sentence" aria-label="Previous sentence">⏮</button>
+      <button class="rbtn big accent" id="ttsPlay" title="Play / pause" aria-label="Play or pause">▶</button>
+      <button class="rbtn" id="ttsNext" title="Next sentence" aria-label="Next sentence">⏭</button>
+      <button class="rbtn" id="ttsStop" title="Stop" aria-label="Stop">■</button>
+      <label class="tts-opt">Speed <select id="ttsRate"><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>1.75</option><option>2</option></select></label>
+      <label class="tts-opt">Voice <select id="ttsVoice"></select></label>
+      <label class="tts-opt chk"><input type="checkbox" id="ttsAuto" checked> Auto-turn pages</label>
+      <button class="rbtn" id="ttsClose" title="Close" aria-label="Close read-aloud">✕</button>
+    </div>
+  </section>
+</div>
+</body>
+</html>

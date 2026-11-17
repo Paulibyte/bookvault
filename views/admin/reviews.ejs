@@ -1,0 +1,13 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0">Reviews</h1></div>
+<div class="card">
+<% if (!reviews.length) { %><div class="empty">No reviews yet.</div><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>Item</th><th>Rating</th><th>Review</th><th>Buyer</th><th></th></tr></thead>
+<tbody><% reviews.forEach(function(r){ %>
+<tr style="<%= r.is_hidden ? 'opacity:.5' : '' %>"><td><a href="/book/<%= r.slug %>#reviews"><%= r.title %></a></td><td><%- include('../partials/stars', { r: r.rating }) %></td>
+<td class="small" style="max-width:360px"><%= r.body || '—' %></td><td class="small"><%= r.full_name %><br><span class="muted"><%= r.updated_at.slice(0,10) %></span></td>
+<td><form method="post" action="/admin/reviews/<%= r.id %>/toggle"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm ghost"><%= r.is_hidden ? 'Show' : 'Hide' %></button></form></td></tr>
+<% }) %></tbody></table></div><% } %>
+</div>
+<%- include('_bottom') %>

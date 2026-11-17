@@ -28,6 +28,17 @@
       <span class="hint"><% if (opayReady) { %>✓ Keys found in .env — mode: <strong><%= opayMode %></strong><% } else { %>⚠ Add OPAY_MERCHANT_ID, OPAY_PUBLIC_KEY and OPAY_SECRET_KEY to the .env file, then restart the app.<% } %></span></span></label>
   </fieldset>
 
+  <fieldset id="authors">
+    <legend>Authors, royalties &amp; reviews</legend>
+    <label class="check"><input type="checkbox" name="authors_enabled" value="1" <%= settings.authors_enabled === '1' ? 'checked' : '' %>><span>Allow authors to apply and submit titles <span class="hint">(page: /author)</span></span></label>
+    <div class="grid2" style="margin-top:.8rem">
+      <div class="field"><label>Store commission on author sales (%) <span class="hint">— author keeps the rest</span></label><input type="number" name="default_commission_pct" min="0" max="100" step="0.5" value="<%= settings.default_commission_pct %>"></div>
+      <div class="field"><label>Minimum royalty payout (₦)</label><input type="text" inputmode="decimal" name="payout_min" value="<%= Number(settings.payout_min_kobo) / 100 %>"></div>
+    </div>
+    <p class="small muted">You can override the commission for individual authors on their page. Changes apply to future sales only.</p>
+    <label class="check"><input type="checkbox" name="reviews_enabled" value="1" <%= settings.reviews_enabled === '1' ? 'checked' : '' %>><span>Let buyers rate and review what they bought</span></label>
+  </fieldset>
+
   <fieldset>
     <legend>Watermark &amp; protection</legend>
     <p class="small muted">Placeholders: <code>{name}</code> <code>{email}</code> <code>{phone}</code> <code>{order}</code> <code>{date}</code> <code>{store}</code>. Page numbers are added to the footer automatically. Changing anything here regenerates copies on the next download.</p>

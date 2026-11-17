@@ -1,53 +1,59 @@
 <%- include('partials/head') %>
+<% const sw = kind === 'software'; const base = sw ? '/?kind=software' : '/?'; const amp = sw ? '&' : ''; %>
 <section class="hero">
   <div class="wrap">
-    <h1>Your course textbooks, delivered in minutes.</h1>
-    <p><%= settings.store_tagline %></p>
+    <% if (sw) { %>
+      <h1>Apps &amp; software, ready to install.</h1>
+      <p>Engineering tools, utilities and course software — buy once, download any time from your library.</p>
+    <% } else { %>
+      <h1>Your course textbooks, delivered in minutes.</h1>
+      <p><%= settings.store_tagline %></p>
+    <% } %>
     <form class="search" action="/" method="get">
-      <input type="search" name="q" value="<%= q %>" placeholder="Search by title, author or course…" aria-label="Search">
-      <% if (cat) { %><input type="hidden" name="cat" value="<%= cat %>"><% } %>
+      <% if (sw) { %><input type="hidden" name="kind" value="software"><% } %>
+      <input type="search" name="q" value="<%= q %>" placeholder="<%= sw ? 'Search apps and software…' : 'Search by title, author or course…' %>" aria-label="Search">
       <button class="btn accent">Search</button>
     </form>
-    <div class="trust"><span>Pay by bank transfer or OPay</span><span>Instant download after confirmation</span><span>Re-download anytime from your library</span></div>
+    <div class="kind-tabs"><a href="/" class="<%= sw ? '' : 'on' %>">📚 Books</a><a href="/?kind=software" class="<%= sw ? 'on' : '' %>">💻 Apps &amp; Software</a></div>
   </div>
 </section>
 <main class="wrap" style="padding-bottom:4rem">
   <div class="filters">
     <div class="chips">
-      <a class="chip <%= !cat && !type ? 'on' : '' %>" href="/">All</a>
-      <% categories.forEach(function(c){ %><a class="chip <%= cat === c.id ? 'on' : '' %>" href="/?cat=<%= c.id %>"><%= c.name %> <span class="muted">· <%= c.n %></span></a><% }) %>
+      <a class="chip <%= !cat && !type ? 'on' : '' %>" href="<%= sw ? '/?kind=software' : '/' %>">All</a>
+      <% categories.forEach(function(c){ %><a class="chip <%= cat === c.id ? 'on' : '' %>" href="<%= base %><%= amp %>cat=<%= c.id %>"><%= c.name %> <span class="muted">· <%= c.n %></span></a><% }) %>
+      <% if (!sw) { %>
       <a class="chip <%= type === 'pdf' ? 'on' : '' %>" href="/?type=pdf">PDF</a>
       <a class="chip <%= type === 'docx' ? 'on' : '' %>" href="/?type=docx">Word</a>
-      <a class="chip <%= type === 'zip' ? 'on' : '' %>" href="/?type=zip">Files &amp; packs</a>
+      <a class="chip <%= type === 'zip' ? 'on' : '' %>" href="/?type=zip">Packs</a>
+      <% } %>
     </div>
   </div>
-  <div style="margin-top:1.5rem"><%- include('partials/flash') %></div>
-  <% if (q) { %><p class="muted" style="margin-top:1rem"><%= products.length %> result<%= products.length === 1 ? '' : 's' %> for “<%= q %>” · <a href="/">clear</a></p><% } %>
+  <div style="margin-top:1.2rem"><%- include('partials/flash') %></div>
+  <form class="sortbar" method="get" action="/">
+    <span class="muted small"><%= products.length %> item<%= products.length === 1 ? '' : 's' %><% if (q) { %> for “<%= q %>” · <a href="<%= sw ? '/?kind=software' : '/' %>">clear</a><% } %></span>
+    <% if (sw) { %><input type="hidden" name="kind" value="software"><% } %>
+    <% if (q) { %><input type="hidden" name="q" value="<%= q %>"><% } %>
+    <% if (cat) { %><input type="hidden" name="cat" value="<%= cat %>"><% } %>
+    <% if (type) { %><input type="hidden" name="type" value="<%= type %>"><% } %>
+    <label class="row small" style="margin:0;font-weight:500">Sort
+      <select name="sort" data-autosubmit>
+        <% [['popular','Most popular'],['bestselling','Best selling'],['rating','Top rated'],['newest','Newest'],['price_low','Price: low to high'],['price_high','Price: high to low']].forEach(function(o){ %>
+        <option value="<%= o[0] %>" <%= sort === o[0] ? 'selected' : '' %>><%= o[1] %></option><% }) %>
+      </select>
+    </label>
+  </form>
   <% if (!products.length) { %>
-    <div class="empty card" style="margin-top:1.5rem"><h2>No items yet</h2><p>Check back soon<% if (user && user.is_admin) { %> — or <a href="/admin/products/new">add your first book</a><% } %>.</p></div>
+    <div class="empty card" style="margin-top:1.2rem"><h2>Nothing here yet</h2><p>Check back soon<% if (user && user.is_admin) { %> — or <a href="/admin/products/new">add a product</a><% } %>.</p></div>
   <% } %>
   <div class="grid">
-    <% products.forEach(function(p){ %>
-    <article class="book">
-      <a class="cover-link" href="/book/<%= p.slug %>">
-        <%- include('partials/cover', { p: p, showBadge: true }) %>
-      </a>
-      <div class="body">
-        <a class="cover-link title" href="/book/<%= p.slug %>"><%= p.title %></a>
-        <% if (p.author) { %><div class="author"><%= p.author %></div><% } %>
-        <div class="foot">
-          <span class="price"><%= p.price_kobo ? naira(p.price_kobo) : 'Free' %></span>
-          <% if (owned.has(p.id)) { %>
-            <a class="btn sm green" href="/library">Owned</a>
-          <% } else if (cart.has(p.id)) { %>
-            <a class="btn sm ghost" href="/cart">In cart</a>
-          <% } else { %>
-            <form method="post" action="/cart/add/<%= p.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">Add</button></form>
-          <% } %>
-        </div>
-      </div>
-    </article>
-    <% }) %>
+    <% products.forEach(function(p){ %><%- include('partials/card', { p: p, owned: owned, cart: cart, ranks: ranks }) %><% }) %>
   </div>
+  <% if (settings.authors_enabled === '1' && !sw) { %>
+  <div class="cta-author">
+    <div><h2>Are you an author or lecturer?</h2><p>Publish your books here, reach students across campuses and earn royalties on every sale.</p></div>
+    <a class="btn accent" href="/author">Become an author</a>
+  </div>
+  <% } %>
 </main>
 <%- include('partials/foot') %>

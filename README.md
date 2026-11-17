@@ -5,33 +5,57 @@ Sell PDF textbooks, Word handouts and ZIP packs to students. Every PDF and Word 
 ## What's inside
 
 **For students (the store)**
-- A catalogue with covers, prices, categories, search and filters (PDF / Word / packs)
-- A cart and checkout with **OPay Checkout** (card, transfer, USSD, wallet; unlocks instantly) or **direct bank deposit** (the student uploads a receipt and you confirm it)
-- **My Library**: download buttons and the password for each book, with a Copy button
-- Installs on a phone like an app (PWA: "Add to Home screen")
+- **Books** and **Apps & Software** tabs, with search, categories and sorting: *Most popular* (sales and ratings combined), *Best selling*, *Top rated*, *Newest* and price. The top 3 titles get a **#1 / #2 / #3 Bestseller** badge.
+- Ratings and reviews (1–5 stars) from **verified buyers only**
+- Checkout with **OPay** or **direct bank deposit** (upload a receipt; the admin confirms)
+- **My Library**
+  - **📖 Read** opens the book inside the app, with zoom, night mode and the last page remembered
+  - **Save offline** keeps the book on the device so it opens without internet (see *Saved books*)
+  - **🎧 Listen** reads the book aloud, with a choice of voice and speed, and turns pages automatically
+  - **⬇ Download .zip**: the watermarked, password-protected file, as before
+- **Install prompt**: Android, Windows and Mac (Chrome/Edge) get an "Install" banner. iPhone users get "Share → Add to Home Screen" instructions.
+- Logging out clears books saved on that device, so shared phones and laptops stay safe
+
+**For authors (`/author`)**
+- Apply with a pen name, legal name, bio, ID document and photo. The admin verifies the application.
+- Submit books (PDF/Word) or software (ZIP), each with a **copyright declaration**:
+  - how they hold the rights (sole author / co-author / licensed)
+  - ISBN, publisher and edition
+  - four declarations
+  - a typed signature that must match their legal name
+  - an optional supporting document
+  The date, time and IP address are recorded with each declaration.
+- Titles go live only after **admin approval**. Replacing a file or changing a title sends it back for review.
+- Sales dashboard: earnings by month, sales by title, recent sales and ratings
+- **Royalties**
+  - Authors add bank details, then either **request a payout** or switch on **automatic payout**, which raises a request as soon as their balance reaches the minimum
+  - Each request shows in *Admin → Payouts* for you to pay
 
 **For you (`/admin`)**
-- A dashboard showing revenue, transfers waiting to be confirmed, a 14-day sales chart and best sellers
-- Products: upload a file and cover, write a description, set the price and category, show or hide it, turn protection on or off. Use **Test copy** to see exactly what a buyer receives.
-- Orders: view the receipt, then **Confirm** or **Reject** with a note. You can re-check an order with OPay, reset a buyer's download count and see the download log (IP and device).
-- Customers: block an account, reset a password, correct a name (their books regenerate) and **Give a product** for cash payments
-- Settings: bank details, header/footer templates, watermark logo, opacity and size, a download limit, and whether PDFs can be printed
+- Everything from before, plus:
+  - **Authors**: verify, reject or suspend, view their ID, and override the commission per author
+  - **Products → Awaiting review**: read the copyright declaration, download the original file, then **Approve & publish** or **Send back** with a note
+  - **Payouts**: see the author's bank details and the amount, make the transfer from your bank, then **Mark paid** with the transfer reference. You can also see balances still owed.
+  - **Reviews**: hide or show reviews
+- **Settings → Authors, royalties & reviews**
+  - Store commission (default 30%; the author keeps 70%)
+  - Minimum payout (default ₦5,000)
+  - Turn author sign-ups and reviews on or off
 
 **File rules**
-| Uploaded file | What the buyer gets |
+| Uploaded as | What the buyer gets |
 |---|---|
-| `.pdf` | Watermarked and AES-256 password-locked PDF inside a zip (editing and copying are blocked; printing is optional) |
-| `.docx` | Header, footer and logo added to every section, then password-encrypted (opens in Word, WPS and LibreOffice) inside a zip |
-| `.zip` | Your zip, unchanged |
-| anything else | Wrapped in a zip, unchanged |
-
-Old `.doc` files can't be watermarked. Open them in Word and use **Save As → .docx** first.
+| Book `.pdf` | Watermarked, AES-256-locked PDF in a zip, **plus** the in-app reader |
+| Book `.docx` | Watermarked, password-encrypted Word file in a zip, **plus** the in-app reader (a PDF copy is made automatically if LibreOffice is installed) |
+| **Software** (any file, `.zip` recommended) | Exactly what was uploaded, **never stamped or watermarked**; non-zip files are wrapped in a zip |
 
 ## Run on your Hostinger VPS (alongside Reseeti/Jobtins)
 
 ```bash
 # 1. system packages (qpdf does the PDF encryption)
 sudo apt update && sudo apt install -y qpdf
+# optional, lets students read Word books in the app (~300 MB):
+sudo apt install -y libreoffice-writer --no-install-recommends
 
 # 2. code
 cd /var/www && sudo git clone https://github.com/<you>/bookvault.git && cd bookvault
@@ -89,12 +113,19 @@ tar czf ~/bookvault-backup-$(date +%F).tgz -C /var/www/bookvault data storage
 ```
 `storage/deliveries/` only holds cached buyer copies and can be deleted at any time; they regenerate on the next download.
 
-## Updating
+## Updating an existing install
+Your existing database upgrades itself automatically the first time the new version starts. Products, orders and buyers are kept.
+```bash
+cd /var/www/bookvault && git pull && npm install --omit=dev && pm2 restart bookvault
+```
+If npm warns about install scripts, run `npm install-scripts approve better-sqlite3 && npm rebuild better-sqlite3`.
+
+## Updating (general)
 ```bash
 cd /var/www/bookvault && git pull && npm install --omit=dev && pm2 restart bookvault
 ```
 Keep server-only edits in `.env`, never in `package.json`, so `git pull` doesn't conflict.
 
 ## Tech
-Node.js 18+ · Express · EJS · SQLite (better-sqlite3) · pdf-lib + qpdf (PDF) · JSZip + officecrypto-tool (Word) · sharp (images) · archiver (zip).
+Node.js 18+ · Express · EJS · SQLite (better-sqlite3) · PDF.js (in-app reader) · Web Speech API (read-aloud) · Service Worker (offline) · pdf-lib + qpdf (PDF) · JSZip + officecrypto-tool (Word) · sharp (images) · archiver (zip).
 Run a single instance; SQLite and the on-the-fly watermarking expect one process.

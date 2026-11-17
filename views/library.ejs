@@ -1,25 +1,37 @@
 <%- include('partials/head') %>
+<% const books = items.filter(function(i){ return i.kind !== 'software'; }); const apps = items.filter(function(i){ return i.kind === 'software'; }); const list = tab === 'software' ? apps : books; %>
 <main class="page wrap">
-  <div class="spread"><h1>My library</h1><% if (pending) { %><a class="btn sm ghost" href="/orders"><%= pending %> order<%= pending > 1 ? 's' : '' %> awaiting payment</a><% } %></div>
+  <div class="spread"><h1>My library</h1>
+    <div class="row"><a class="btn sm ghost" href="/offline">📱 Saved on this device</a><% if (pending) { %><a class="btn sm ghost" href="/orders"><%= pending %> order<%= pending > 1 ? 's' : '' %> awaiting payment</a><% } %></div></div>
   <%- include('partials/flash') %>
-  <% if (!items.length) { %>
-    <div class="card empty"><h2>Nothing here yet</h2><p>Books you buy will appear here, ready to download.</p><a class="btn" href="/">Browse the store</a></div>
+  <div class="tabs-inline">
+    <a class="chip <%= tab === 'book' ? 'on' : '' %>" href="/library">📚 Books (<%= books.length %>)</a>
+    <a class="chip <%= tab === 'software' ? 'on' : '' %>" href="/library?tab=software">💻 Apps &amp; Software (<%= apps.length %>)</a>
+  </div>
+  <% if (!list.length) { %>
+    <div class="card empty"><h2>Nothing here yet</h2><p><%= tab === 'software' ? 'Apps' : 'Books' %> you buy will appear here.</p><a class="btn" href="<%= tab === 'software' ? '/?kind=software' : '/' %>">Browse the store</a></div>
   <% } else { %>
-  <div class="card tight small muted" style="margin-bottom:1rem">📱 <strong>How to open:</strong> download the .zip, extract it (tap it on most phones), then open the file and type the password shown here. PDFs open in any PDF reader; Word files open in Microsoft Word, WPS Office or LibreOffice.</div>
+  <% if (tab === 'book') { %>
+  <div class="card tight small muted" style="margin-bottom:1rem">📖 <strong>Read</strong> opens the book right here — tap <strong>Save offline</strong> inside the reader to read without internet, or <strong>🎧 Listen</strong> to have it read aloud. Prefer a file? Download the .zip, extract it and open the book with the password shown.</div>
+  <% } else { %>
+  <div class="card tight small muted" style="margin-bottom:1rem">💻 Download the .zip, extract it on your computer or phone, then run the installer or app inside.</div>
+  <% } %>
   <div class="lib">
-    <% items.forEach(function(it){ const prot = it.protect && (it.file_type === 'pdf' || it.file_type === 'docx'); const left = limit ? Math.max(limit - it.download_count, 0) : null; %>
+    <% list.forEach(function(it){ const prot = it.kind !== 'software' && it.protect && (it.file_type === 'pdf' || it.file_type === 'docx'); const left = limit ? Math.max(limit - it.download_count, 0) : null; %>
     <div class="card lib-item">
       <%- include('partials/thumb', { p: it }) %>
       <div>
-        <div style="font-weight:650"><%= it.title %></div>
-        <div class="muted small"><%= it.file_type.toUpperCase() %> · Order <span class="mono"><%= it.reference %></span><% if (left !== null) { %> · <%= left %> download<%= left === 1 ? '' : 's' %> left<% } %></div>
+        <a href="/book/<%= it.slug %>" style="font-weight:650;text-decoration:none;color:inherit"><%= it.title %></a>
+        <div class="muted small"><%= it.kind === 'software' ? ['Software', it.platform, it.version ? 'v' + it.version : ''].filter(Boolean).join(' · ') : it.file_type.toUpperCase() %> · Order <span class="mono"><%= it.reference %></span><% if (left !== null) { %> · <%= left %> download<%= left === 1 ? '' : 's' %> left<% } %></div>
         <% if (prot && it.file_password) { %>
-          <div style="margin-top:.5rem" class="row"><span class="small muted">Password:</span><span class="pw"><span id="pw<%= it.id %>"><%= it.file_password %></span><button type="button" data-copy="#pw<%= it.id %>">Copy</button></span></div>
+          <div style="margin-top:.5rem" class="row"><span class="small muted">File password:</span><span class="pw"><span id="pw<%= it.id %>"><%= it.file_password %></span><button type="button" data-copy="#pw<%= it.id %>">Copy</button></span></div>
         <% } %>
       </div>
       <div class="actions">
-        <% if (left === 0) { %><span class="small muted">Limit reached — contact us</span>
-        <% } else { %><a class="btn green" href="/download/<%= it.id %>" data-download>⬇ Download .zip</a><% } %>
+        <% if (it.readable) { %><a class="btn accent" href="/read/<%= it.id %>">📖 Read</a><% } %>
+        <% if (left === 0) { %><span class="small muted">Download limit reached — contact us</span>
+        <% } else { %><a class="btn <%= it.readable ? 'ghost' : 'green' %>" href="/download/<%= it.id %>" data-download>⬇ Download .zip</a><% } %>
+        <a class="btn sm ghost" href="/book/<%= it.slug %>#reviews" title="Rate this">★ Rate</a>
       </div>
     </div>
     <% }) %>

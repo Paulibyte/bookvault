@@ -1,0 +1,13 @@
+<%- include('_top') %>
+<form class="card" method="post" action="/author/profile?_csrf=<%= csrf %>" enctype="multipart/form-data" style="max-width:720px">
+  <div class="grid2">
+    <div class="field"><label>Pen name</label><input type="text" name="pen_name" value="<%= author.pen_name %>" required></div>
+    <div class="field"><label>Phone</label><input type="tel" name="phone" value="<%= author.phone || '' %>"></div>
+  </div>
+  <div class="field"><label>Institution / organisation</label><input type="text" name="institution" value="<%= author.institution || '' %>"></div>
+  <div class="field"><label>Bio</label><textarea name="bio"><%= author.bio || '' %></textarea></div>
+  <div class="field"><label>Profile photo</label><input type="file" name="photo" accept="image/*"></div>
+  <p class="small muted">Legal name on file: <strong><%= author.legal_name %></strong> — contact the store to change it.</p>
+  <button class="btn">Save profile</button>
+</form>
+<%- include('_bottom') %>

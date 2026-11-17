@@ -1,0 +1,19 @@
+<%- include('_top') %>
+<div class="card">
+<% if (!books.length) { %><div class="empty"><p>No titles yet.</p><a class="btn accent" href="/author/books/new">Submit your first title</a></div><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th></th><th>Title</th><th>Type</th><th>Status</th><th class="num">Price</th><th class="num">Sold</th><th></th></tr></thead>
+<tbody><% books.forEach(function(p){ %>
+<tr>
+  <td style="width:52px"><%- include('../partials/thumb', { p: p }) %></td>
+  <td><strong><%= p.title %></strong><% if (p.status === 'rejected' && p.review_note) { %><div class="small" style="color:var(--red)">Reviewer: <%= p.review_note %></div><% } %>
+    <% if (p.status === 'published' && !p.is_active) { %><div class="small muted">Hidden by the store</div><% } %></td>
+  <td><span class="badge <%= p.kind === 'software' ? 'software' : p.file_type %>"><%= p.kind === 'software' ? 'app' : p.file_type %></span></td>
+  <td><span class="badge <%= p.status %>"><%= p.status === 'pending' ? 'In review' : p.status %></span></td>
+  <td class="num"><%= naira(p.price_kobo) %></td><td class="num"><%= p.sold %></td>
+  <td class="num"><% if (p.status === 'published') { %><a class="btn sm ghost" href="/book/<%= p.slug %>">View</a><% } %> <a class="btn sm ghost" href="/author/books/<%= p.id %>">Edit</a></td>
+</tr><% }) %></tbody></table></div>
+<% } %>
+</div>
+<p class="small muted" style="margin-top:1rem">Changing the price or description of a published title takes effect immediately. Replacing the file or changing the title sends it back for review.</p>
+<%- include('_bottom') %>

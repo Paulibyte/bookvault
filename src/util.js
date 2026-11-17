@@ -9,6 +9,7 @@ const DIRS = {
   proofs: path.join(STORAGE, 'proofs'),
   deliveries: path.join(STORAGE, 'deliveries'),
   branding: path.join(STORAGE, 'branding'),
+  authors: path.join(STORAGE, 'authors'),
   tmp: path.join(STORAGE, 'tmp'),
 };
 

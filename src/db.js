@@ -110,7 +110,96 @@ const DEFAULT_SETTINGS = {
   download_limit: '5',
   allow_print: '1',
   about_text: '',
+  authors_enabled: '1',
+  default_commission_pct: '30',
+  payout_min_kobo: '500000',
+  reviews_enabled: '1',
 };
+
+// ---------- Migrations (safe to run on an existing database) ----------
+function hasColumn(table, col) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === col);
+}
+function addColumn(table, col, def) {
+  if (!hasColumn(table, col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+}
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS authors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  pen_name TEXT NOT NULL,
+  legal_name TEXT NOT NULL,
+  bio TEXT,
+  phone TEXT,
+  address TEXT,
+  institution TEXT,
+  id_type TEXT,
+  id_file TEXT,
+  photo_file TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',      -- pending | verified | rejected | suspended
+  review_note TEXT,
+  commission_pct REAL,                          -- NULL = use store default
+  bank_name TEXT,
+  bank_account_number TEXT,
+  bank_account_name TEXT,
+  auto_payout INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  verified_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS payouts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  author_id INTEGER NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
+  amount_kobo INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'requested',    -- requested | paid | rejected
+  trigger TEXT NOT NULL DEFAULT 'request',     -- request | auto
+  bank_name TEXT, bank_account_number TEXT, bank_account_name TEXT,
+  transfer_reference TEXT,
+  admin_note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  paid_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  body TEXT,
+  is_hidden INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (product_id, user_id)
+);
+`);
+
+addColumn('products', 'kind', "TEXT NOT NULL DEFAULT 'book'");          // book | software
+addColumn('products', 'platform', 'TEXT');
+addColumn('products', 'version', 'TEXT');
+addColumn('products', 'author_id', 'INTEGER REFERENCES authors(id) ON DELETE SET NULL');
+addColumn('products', 'status', "TEXT NOT NULL DEFAULT 'published'");   // draft | pending | published | rejected
+addColumn('products', 'review_note', 'TEXT');
+addColumn('products', 'copyright_json', 'TEXT');
+addColumn('products', 'copyright_file', 'TEXT');
+addColumn('products', 'submitted_at', 'TEXT');
+addColumn('products', 'approved_at', 'TEXT');
+addColumn('products', 'reader_pdf', 'TEXT');        // PDF copy of a .docx used by the in-app reader
+addColumn('products', 'sales_count', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('products', 'rating_avg', 'REAL NOT NULL DEFAULT 0');
+addColumn('products', 'rating_count', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('order_items', 'author_id', 'INTEGER');
+addColumn('order_items', 'commission_pct', 'REAL');
+addColumn('order_items', 'author_earning_kobo', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('order_items', 'reader_file', 'TEXT');
+db.exec(`CREATE INDEX IF NOT EXISTS idx_items_author ON order_items(author_id);
+CREATE INDEX IF NOT EXISTS idx_products_status ON products(status, is_active);`);
+
+// Backfill sales counts once for stores that existed before this column
+if (db.prepare("SELECT COUNT(*) c FROM products WHERE sales_count > 0").get().c === 0) {
+  db.exec(`UPDATE products SET sales_count = (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id = oi.order_id
+    WHERE oi.product_id = products.id AND o.status = 'paid' AND o.admin_note IS NOT 'Admin test copy')`);
+}
 
 const insSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insSetting.run(k, v);

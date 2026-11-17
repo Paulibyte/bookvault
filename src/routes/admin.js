@@ -10,79 +10,20 @@ const { DIRS, slugify, fileTypeOf, makePassword } = require('../util');
 const { flash, requireAdmin } = require('../middleware');
 const { markPaid } = require('../orders');
 const { clearDeliveries, buildDelivery } = require('../deliver');
-const { normalisePdf } = require('../watermark/pdf');
-const { validateDocx } = require('../watermark/docx');
 const opay = require('../opay');
 
 const router = express.Router();
 router.use(requireAdmin);
 router.use((req, res, next) => {
   res.locals.awaitingCount = db.prepare("SELECT COUNT(*) c FROM orders WHERE status = 'awaiting_confirmation'").get().c;
+  res.locals.reviewCount = db.prepare("SELECT COUNT(*) c FROM products WHERE status = 'pending'").get().c;
+  res.locals.authorCount = db.prepare("SELECT COUNT(*) c FROM authors WHERE status = 'pending'").get().c;
+  res.locals.payoutCount = db.prepare("SELECT COUNT(*) c FROM payouts WHERE status = 'requested'").get().c;
   next();
 });
 
-const MAX_MB = Number(process.env.MAX_UPLOAD_MB) || 500;
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: DIRS.tmp,
-    filename: (req, file, cb) => cb(null, `${Date.now()}_${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`),
-  }),
-  limits: { fileSize: MAX_MB * 1024 * 1024 },
-});
+const { MAX_MB, upload, nairaToKobo, uniqueSlug, categoryId, saveCover, saveProductFile, removeStored, cleanupFiles, PLATFORMS } = require('../products');
 const productFields = upload.fields([{ name: 'file', maxCount: 1 }, { name: 'cover', maxCount: 1 }]);
-
-function nairaToKobo(v) {
-  const n = parseFloat(String(v || '0').replace(/[^0-9.]/g, ''));
-  return Math.round((isNaN(n) ? 0 : n) * 100);
-}
-
-function uniqueSlug(title, exceptId = 0) {
-  const base = slugify(title);
-  let s = base, i = 2;
-  while (db.prepare('SELECT 1 FROM products WHERE slug = ? AND id != ?').get(s, exceptId)) s = `${base}-${i++}`;
-  return s;
-}
-
-function categoryId(body) {
-  const newCat = (body.new_category || '').trim();
-  if (newCat) {
-    db.prepare('INSERT OR IGNORE INTO categories (name) VALUES (?)').run(newCat);
-    return db.prepare('SELECT id FROM categories WHERE name = ?').get(newCat).id;
-  }
-  return Number(body.category_id) || null;
-}
-
-async function saveCover(file) {
-  if (!file) return null;
-  const name = `${Date.now()}_${crypto.randomBytes(5).toString('hex')}.webp`;
-  try {
-    await sharp(file.path).rotate().resize({ width: 700, height: 980, fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 82 }).toFile(path.join(DIRS.covers, name));
-    return name;
-  } finally { fs.promises.unlink(file.path).catch(() => {}); }
-}
-
-/** Validate + move an uploaded product file into storage. Returns meta. */
-async function saveProductFile(file) {
-  const type = fileTypeOf(file.originalname);
-  const stored = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`;
-  const dest = path.join(DIRS.products, stored);
-  let pages = null;
-  try {
-    if (type === 'pdf') {
-      ({ pages } = await normalisePdf(file.path, dest));
-    } else {
-      if (type === 'docx') await validateDocx(file.path);
-      await fs.promises.copyFile(file.path, dest);
-    }
-  } finally { fs.promises.unlink(file.path).catch(() => {}); }
-  const size = (await fs.promises.stat(dest)).size;
-  return { stored, type, pages, size, original: file.originalname };
-}
-
-function cleanupFiles(req) {
-  for (const arr of Object.values(req.files || {})) for (const f of arr) fs.promises.unlink(f.path).catch(() => {});
-}
 
 // ---------- Dashboard ----------
 router.get('/', (req, res) => {
@@ -111,37 +52,56 @@ router.get('/', (req, res) => {
   const s = getSettings();
   if (s.bank_enabled === '1' && !s.bank_account_number) warnings.push('Add your bank account details in Settings so buyers know where to pay.');
   if (s.opay_enabled === '1' && !opay.configured()) warnings.push('OPay is switched on but keys are missing from the .env file.');
+  if (res.locals.reviewCount) warnings.push(`${res.locals.reviewCount} author title(s) waiting for your approval.`);
+  if (res.locals.authorCount) warnings.push(`${res.locals.authorCount} author application(s) waiting for verification.`);
+  if (res.locals.payoutCount) warnings.push(`${res.locals.payoutCount} royalty payout request(s) to pay.`);
   if (!s.watermark_logo) warnings.push('Upload a watermark logo in Settings (header/footer text is already active).');
   res.render('admin/dashboard', { title: 'Dashboard', stats, top, awaiting, recent, days, warnings });
 });
 
 // ---------- Products ----------
 router.get('/products', (req, res) => {
-  const products = db.prepare(`SELECT p.*, c.name category,
+  const filter = req.query.f || '';
+  const where = filter === 'review' ? "WHERE p.status = 'pending'" : filter === 'authors' ? 'WHERE p.author_id IS NOT NULL'
+    : filter === 'software' ? "WHERE p.kind = 'software'" : filter === 'books' ? "WHERE p.kind = 'book'" : '';
+  const products = db.prepare(`SELECT p.*, c.name category, a.pen_name author_name,
     (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.product_id = p.id AND o.status='paid') sold
-    FROM products p LEFT JOIN categories c ON c.id = p.category_id ORDER BY p.id DESC`).all();
-  res.render('admin/products', { title: 'Products', products });
+    FROM products p LEFT JOIN categories c ON c.id = p.category_id LEFT JOIN authors a ON a.id = p.author_id ${where}
+    ORDER BY CASE p.status WHEN 'pending' THEN 0 ELSE 1 END, p.id DESC`).all();
+  res.render('admin/products', { title: 'Products', products, filter });
 });
 
+function productFormData(p) {
+  const author = p.author_id ? db.prepare('SELECT a.*, u.email FROM authors a JOIN users u ON u.id = a.user_id WHERE a.id = ?').get(p.author_id) : null;
+  return { p, author, cr: p.copyright_json ? JSON.parse(p.copyright_json) : null, categories: db.prepare('SELECT * FROM categories ORDER BY name').all(),
+    maxMb: MAX_MB, platforms: PLATFORMS, canConvert: require('../watermark/convert').available() };
+}
+
 router.get('/products/new', (req, res) => {
-  res.render('admin/product-form', { title: 'Add product', p: { protect: 1, is_active: 1 }, categories: db.prepare('SELECT * FROM categories ORDER BY name').all(), maxMb: MAX_MB });
+  res.render('admin/product-form', { title: 'Add product', ...productFormData({ protect: 1, is_active: 1, kind: req.query.kind === 'software' ? 'software' : 'book' }) });
 });
 
 router.post('/products/new', productFields, async (req, res, next) => {
   try {
     const file = req.files && req.files.file && req.files.file[0];
     const title = (req.body.title || '').trim();
+    const kind = req.body.kind === 'software' ? 'software' : 'book';
     if (!title || !file) { cleanupFiles(req); flash(req, 'error', 'Title and file are required.'); return res.redirect('/admin/products/new'); }
     let meta;
-    try { meta = await saveProductFile(file); }
+    try { meta = await saveProductFile(file, kind); }
     catch (e) { cleanupFiles(req); flash(req, 'error', e.message); return res.redirect('/admin/products/new'); }
     const cover = await saveCover(req.files.cover && req.files.cover[0]);
-    db.prepare(`INSERT INTO products (title, slug, author, category_id, description, price_kobo, cover_file, stored_file, original_name, file_type, file_size, pages, protect, is_active)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    db.prepare(`INSERT INTO products (title, slug, author, category_id, description, price_kobo, cover_file, stored_file, original_name, file_type, file_size, pages,
+      protect, is_active, kind, platform, version, reader_pdf, status, approved_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'published',datetime('now'))`).run(
       title, uniqueSlug(title), (req.body.author || '').trim(), categoryId(req.body), (req.body.description || '').trim(),
       nairaToKobo(req.body.price), cover, meta.stored, meta.original, meta.type, meta.size, meta.pages,
-      req.body.protect ? 1 : 0, req.body.is_active ? 1 : 0);
-    const note = (meta.type === 'pdf' || meta.type === 'docx') ? '' : ' (this file type is delivered as-is, without watermark/password)';
+      kind === 'software' ? 0 : (req.body.protect ? 1 : 0), req.body.is_active ? 1 : 0, kind,
+      kind === 'software' ? (req.body.platform || '').trim() : null, kind === 'software' ? (req.body.version || '').trim() : null, meta.readerPdf);
+    let note = '';
+    if (kind === 'software') note = ' — software is delivered exactly as uploaded';
+    else if (!(meta.type === 'pdf' || meta.type === 'docx')) note = ' (this file type is delivered as-is, without watermark/password)';
+    else if (meta.type === 'docx' && !meta.readerPdf) note = ' — buyers can download it; install LibreOffice on the server to also let them read Word books in the app';
     flash(req, 'success', `"${title}" added${note}.`);
     res.redirect('/admin/products');
   } catch (e) { cleanupFiles(req); next(e); }
@@ -150,7 +110,7 @@ router.post('/products/new', productFields, async (req, res, next) => {
 router.get('/products/:id', (req, res) => {
   const p = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id));
   if (!p) return res.redirect('/admin/products');
-  res.render('admin/product-form', { title: 'Edit product', p, categories: db.prepare('SELECT * FROM categories ORDER BY name').all(), maxMb: MAX_MB });
+  res.render('admin/product-form', { title: p.status === 'pending' ? 'Review submission' : 'Edit product', ...productFormData(p) });
 });
 
 router.post('/products/:id', productFields, async (req, res, next) => {
@@ -158,30 +118,62 @@ router.post('/products/:id', productFields, async (req, res, next) => {
     const p = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id));
     if (!p) { cleanupFiles(req); return res.redirect('/admin/products'); }
     const file = req.files && req.files.file && req.files.file[0];
+    const kind = req.body.kind === 'software' ? 'software' : (req.body.kind === 'book' ? 'book' : p.kind);
     let meta = null;
     if (file) {
-      try { meta = await saveProductFile(file); }
+      try { meta = await saveProductFile(file, kind); }
       catch (e) { cleanupFiles(req); flash(req, 'error', e.message); return res.redirect(`/admin/products/${p.id}`); }
     }
     const coverFile = req.files && req.files.cover && req.files.cover[0];
-    const cover = coverFile ? await saveCover(coverFile) : p.cover_file;
-    if (coverFile && p.cover_file) fs.promises.unlink(path.join(DIRS.covers, p.cover_file)).catch(() => {});
+    const cover = coverFile ? (await saveCover(coverFile)) || p.cover_file : p.cover_file;
+    if (coverFile && p.cover_file && cover !== p.cover_file) fs.promises.unlink(path.join(DIRS.covers, p.cover_file)).catch(() => {});
     const title = (req.body.title || p.title).trim();
-    const protect = req.body.protect ? 1 : 0;
+    const protect = kind === 'software' ? 0 : (req.body.protect ? 1 : 0);
     db.prepare(`UPDATE products SET title=?, slug=?, author=?, category_id=?, description=?, price_kobo=?, cover_file=?,
-      stored_file=?, original_name=?, file_type=?, file_size=?, pages=?, protect=?, is_active=?, updated_at=datetime('now') WHERE id=?`).run(
-      title, title === p.title ? p.slug : uniqueSlug(title, p.id), (req.body.author || '').trim(), categoryId(req.body),
+      stored_file=?, original_name=?, file_type=?, file_size=?, pages=?, reader_pdf=?, protect=?, is_active=?, kind=?, platform=?, version=?,
+      updated_at=datetime('now') WHERE id=?`).run(
+      title, title === p.title ? p.slug : uniqueSlug(title, p.id), p.author_id ? p.author : (req.body.author || '').trim(), categoryId(req.body),
       (req.body.description || '').trim(), nairaToKobo(req.body.price), cover,
       meta ? meta.stored : p.stored_file, meta ? meta.original : p.original_name, meta ? meta.type : p.file_type,
-      meta ? meta.size : p.file_size, meta ? meta.pages : p.pages, protect, req.body.is_active ? 1 : 0, p.id);
-    if (meta || protect !== p.protect) {
+      meta ? meta.size : p.file_size, meta ? meta.pages : p.pages, meta ? meta.readerPdf : p.reader_pdf, protect, req.body.is_active ? 1 : 0,
+      kind, kind === 'software' ? (req.body.platform || '').trim() : null, kind === 'software' ? (req.body.version || '').trim() : null, p.id);
+    if (meta || protect !== p.protect || kind !== p.kind) {
       const n = clearDeliveries(p.id);
-      if (meta) fs.promises.unlink(path.join(DIRS.products, p.stored_file)).catch(() => {});
-      if (n) flash(req, 'info', `${n} previous buyer download(s) will be regenerated with the new file on their next download.`);
+      if (meta) removeStored(p.stored_file, p.reader_pdf);
+      if (n) flash(req, 'info', `${n} previous buyer copies will be regenerated on their next download.`);
     }
     flash(req, 'success', 'Product saved.');
-    res.redirect('/admin/products');
+    res.redirect(`/admin/products${p.status === 'pending' ? '/' + p.id : ''}`);
   } catch (e) { cleanupFiles(req); next(e); }
+});
+
+// Approve / reject an author's submission
+router.post('/products/:id/review', (req, res) => {
+  const p = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id));
+  if (!p) return res.redirect('/admin/products');
+  const note = (req.body.note || '').trim();
+  if (req.body.decision === 'approve') {
+    db.prepare("UPDATE products SET status = 'published', is_active = 1, review_note = NULL, approved_at = datetime('now') WHERE id = ?").run(p.id);
+    flash(req, 'success', `"${p.title}" approved and published.`);
+  } else {
+    if (!note) { flash(req, 'error', 'Write a note telling the author what to fix.'); return res.redirect(`/admin/products/${p.id}`); }
+    db.prepare("UPDATE products SET status = 'rejected', review_note = ? WHERE id = ?").run(note, p.id);
+    flash(req, 'info', `"${p.title}" sent back to the author.`);
+  }
+  res.redirect('/admin/products?f=review');
+});
+
+// Original (unwatermarked) file for reviewing a submission
+router.get('/products/:id/original', (req, res) => {
+  const p = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id));
+  if (!p) return res.status(404).end();
+  res.download(path.join(DIRS.products, p.stored_file), p.original_name);
+});
+
+router.get('/doc/:file', (req, res) => {
+  const full = path.join(DIRS.authors, path.basename(req.params.file));
+  if (!fs.existsSync(full)) return res.status(404).end();
+  res.sendFile(full);
 });
 
 router.post('/products/:id/delete', (req, res) => {
@@ -193,7 +185,7 @@ router.post('/products/:id/delete', (req, res) => {
     flash(req, 'info', 'This product has orders, so it was hidden from the store instead of deleted. Buyers keep access.');
   } else {
     db.prepare('DELETE FROM products WHERE id = ?').run(p.id);
-    fs.promises.unlink(path.join(DIRS.products, p.stored_file)).catch(() => {});
+    removeStored(p.stored_file, p.reader_pdf);
     if (p.cover_file) fs.promises.unlink(path.join(DIRS.covers, p.cover_file)).catch(() => {});
     flash(req, 'success', 'Product deleted.');
   }
@@ -323,9 +315,7 @@ router.post('/users/:id', (req, res) => {
     name, (req.body.phone || '').trim(), req.body.is_blocked ? 1 : 0, u.id === req.user.id ? 1 : (req.body.is_admin ? 1 : 0), u.id);
   if (req.body.new_password) db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(req.body.new_password, 10), u.id);
   if (name !== u.full_name) {
-    const rows = db.prepare(`SELECT oi.id, oi.delivery_file FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.user_id = ? AND oi.delivery_file IS NOT NULL`).all(u.id);
-    for (const r of rows) fs.promises.unlink(path.join(DIRS.deliveries, r.delivery_file)).catch(() => {});
-    db.prepare(`UPDATE order_items SET delivery_file = NULL WHERE order_id IN (SELECT id FROM orders WHERE user_id = ?)`).run(u.id);
+    clearDeliveries(null, u.id);
   }
   flash(req, 'success', 'Customer updated.');
   res.redirect(`/admin/users/${u.id}`);
@@ -343,9 +333,10 @@ router.post('/settings', brandUpload, async (req, res, next) => {
     const before = getSettings();
     const keys = ['store_name', 'store_tagline', 'support_phone', 'support_whatsapp', 'support_email', 'bank_name', 'bank_account_name',
       'bank_account_number', 'bank_instructions', 'watermark_header', 'watermark_footer', 'watermark_opacity', 'watermark_logo_size',
-      'download_limit', 'about_text'];
+      'download_limit', 'about_text', 'default_commission_pct'];
     for (const k of keys) if (k in req.body) setSetting(k, (req.body[k] || '').trim());
-    for (const k of ['opay_enabled', 'bank_enabled', 'allow_print']) setSetting(k, req.body[k] ? '1' : '0');
+    if ('payout_min' in req.body) setSetting('payout_min_kobo', nairaToKobo(req.body.payout_min));
+    for (const k of ['opay_enabled', 'bank_enabled', 'allow_print', 'authors_enabled', 'reviews_enabled']) setSetting(k, req.body[k] ? '1' : '0');
     if (req.file) {
       if (!/\.(png|jpe?g|webp)$/i.test(req.file.originalname)) {
         fs.promises.unlink(req.file.path).catch(() => {});
@@ -372,4 +363,92 @@ router.post('/categories/:id/delete', (req, res) => {
   res.redirect('/admin/settings#categories');
 });
 
+// ---------- Authors ----------
+const { authorBalance, commissionFor } = require('../orders');
+
+router.get('/authors', (req, res) => {
+  const status = req.query.status || '';
+  const authors = db.prepare(`SELECT a.*, u.email,
+      (SELECT COUNT(*) FROM products p WHERE p.author_id = a.id) titles,
+      (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.author_id = a.id AND o.status='paid') sold,
+      (SELECT COALESCE(SUM(oi.author_earning_kobo),0) FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.author_id = a.id AND o.status='paid') earned
+    FROM authors a JOIN users u ON u.id = a.user_id ${status ? 'WHERE a.status = ?' : ''}
+    ORDER BY CASE a.status WHEN 'pending' THEN 0 ELSE 1 END, a.id DESC`).all(...(status ? [status] : []));
+  res.render('admin/authors', { title: 'Authors', authors, status, defaultPct: Number(getSettings().default_commission_pct) });
+});
+
+router.get('/authors/:id', (req, res) => {
+  const a = db.prepare('SELECT a.*, u.email, u.full_name FROM authors a JOIN users u ON u.id = a.user_id WHERE a.id = ?').get(Number(req.params.id));
+  if (!a) return res.redirect('/admin/authors');
+  const products = db.prepare(`SELECT p.*, (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.product_id = p.id AND o.status='paid') sold
+    FROM products p WHERE p.author_id = ? ORDER BY p.id DESC`).all(a.id);
+  const payouts = db.prepare('SELECT * FROM payouts WHERE author_id = ? ORDER BY id DESC').all(a.id);
+  res.render('admin/author', { title: a.pen_name, a, products, payouts, bal: authorBalance(a.id), pct: commissionFor(a.id), defaultPct: Number(getSettings().default_commission_pct) });
+});
+
+router.post('/authors/:id/status', (req, res) => {
+  const a = db.prepare('SELECT * FROM authors WHERE id = ?').get(Number(req.params.id));
+  if (!a) return res.redirect('/admin/authors');
+  const status = ['verified', 'rejected', 'suspended', 'pending'].includes(req.body.status) ? req.body.status : a.status;
+  const note = (req.body.note || '').trim() || null;
+  if ((status === 'rejected' || status === 'suspended') && !note) { flash(req, 'error', 'Add a note explaining the decision to the author.'); return res.redirect(`/admin/authors/${a.id}`); }
+  db.prepare(`UPDATE authors SET status = ?, review_note = ?, verified_at = CASE WHEN ? = 'verified' THEN COALESCE(verified_at, datetime('now')) ELSE verified_at END WHERE id = ?`)
+    .run(status, note, status, a.id);
+  if (status === 'suspended') db.prepare("UPDATE products SET is_active = 0 WHERE author_id = ?").run(a.id);
+  flash(req, 'success', `Author marked as ${status}.`);
+  res.redirect(`/admin/authors/${a.id}`);
+});
+
+router.post('/authors/:id/commission', (req, res) => {
+  const v = (req.body.commission_pct || '').trim();
+  const pct = v === '' ? null : Math.min(Math.max(Number(v), 0), 100);
+  db.prepare('UPDATE authors SET commission_pct = ? WHERE id = ?').run(pct == null || isNaN(pct) ? null : pct, Number(req.params.id));
+  flash(req, 'success', 'Commission updated. It applies to future sales.');
+  res.redirect(`/admin/authors/${req.params.id}`);
+});
+
+// ---------- Royalty payouts ----------
+router.get('/payouts', (req, res) => {
+  const status = req.query.status || 'requested';
+  const payouts = db.prepare(`SELECT po.*, a.pen_name, a.legal_name, a.phone FROM payouts po JOIN authors a ON a.id = po.author_id
+    ${status === 'all' ? '' : 'WHERE po.status = ?'} ORDER BY po.id DESC LIMIT 300`).all(...(status === 'all' ? [] : [status]));
+  const owed = db.prepare(`SELECT a.id, a.pen_name, a.bank_account_number FROM authors a WHERE a.status = 'verified'`).all()
+    .map(a => ({ ...a, bal: authorBalance(a.id) })).filter(a => a.bal.available > 0).sort((x, y) => y.bal.available - x.bal.available);
+  res.render('admin/payouts', { title: 'Royalty payouts', payouts, status, owed, minPayout: Number(getSettings().payout_min_kobo) });
+});
+
+router.post('/payouts/:id/paid', (req, res) => {
+  const ref = (req.body.reference || '').trim();
+  if (!ref) { flash(req, 'error', 'Enter the bank transfer reference.'); return res.redirect('/admin/payouts'); }
+  db.prepare("UPDATE payouts SET status = 'paid', transfer_reference = ?, admin_note = ?, paid_at = datetime('now') WHERE id = ? AND status = 'requested'")
+    .run(ref, (req.body.note || '').trim() || null, Number(req.params.id));
+  flash(req, 'success', 'Payout marked as paid.');
+  res.redirect(req.body.back || '/admin/payouts');
+});
+
+router.post('/payouts/:id/reject', (req, res) => {
+  const note = (req.body.note || '').trim();
+  if (!note) { flash(req, 'error', 'Add a reason so the author knows what to fix.'); return res.redirect('/admin/payouts'); }
+  db.prepare("UPDATE payouts SET status = 'rejected', admin_note = ? WHERE id = ? AND status = 'requested'").run(note, Number(req.params.id));
+  flash(req, 'info', 'Payout rejected — the amount returns to the author\'s balance.');
+  res.redirect(req.body.back || '/admin/payouts');
+});
+
+// ---------- Reviews ----------
+router.get('/reviews', (req, res) => {
+  const reviews = db.prepare(`SELECT r.*, u.full_name, u.email, p.title, p.slug FROM reviews r JOIN users u ON u.id = r.user_id
+    JOIN products p ON p.id = r.product_id ORDER BY r.id DESC LIMIT 300`).all();
+  res.render('admin/reviews', { title: 'Reviews', reviews });
+});
+
+router.post('/reviews/:id/toggle', (req, res) => {
+  const r = db.prepare('SELECT * FROM reviews WHERE id = ?').get(Number(req.params.id));
+  if (r) {
+    db.prepare('UPDATE reviews SET is_hidden = 1 - is_hidden WHERE id = ?').run(r.id);
+    require('../orders').refreshRating(r.product_id);
+  }
+  res.redirect('/admin/reviews');
+});
+
 module.exports = router;
+

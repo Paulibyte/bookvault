@@ -45,6 +45,77 @@
     }
   });
 
+  // Logging out clears books saved on this device (shared phones/laptops)
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (f.getAttribute('action') !== '/logout' || f.dataset.cleared) return;
+    e.preventDefault();
+    try { localStorage.removeItem('bv-offline'); } catch (x) {}
+    var done = function () { f.dataset.cleared = '1'; f.submit(); };
+    if (window.caches) Promise.all([caches.delete('bv-books'), caches.delete('bv-pages')]).then(done, done);
+    else done();
+  }, true);
+
+  // ---------- Install prompt (phones & laptops) ----------
+  var deferred = null;
+  var bar = document.getElementById('installBar');
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  var snoozed = Number(localStorage.getItem('bv-install-snooze') || 0) > Date.now();
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  function showBar(ios) {
+    if (!bar || standalone) return;
+    if (ios) {
+      document.getElementById('installText').innerHTML = 'Install <strong>' + bar.dataset.name + '</strong> on your iPhone: tap <strong>Share ⎋</strong> then <strong>Add to Home Screen</strong>.';
+      document.getElementById('installBtn').hidden = true;
+    }
+    bar.hidden = false;
+  }
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferred = e;
+    document.querySelectorAll('[data-install]').forEach(function (el) { el.hidden = false; });
+    if (!snoozed) showBar(false);
+  });
+  if (isIOS && !standalone && !snoozed) setTimeout(function () { showBar(true); }, 2500);
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#installBtn, [data-install]')) {
+      e.preventDefault();
+      if (deferred) {
+        deferred.prompt();
+        deferred.userChoice.then(function () { deferred = null; if (bar) bar.hidden = true; });
+      } else if (isIOS) showBar(true);
+    }
+    if (e.target.closest('#installClose')) {
+      localStorage.setItem('bv-install-snooze', String(Date.now() + 7 * 864e5));
+      bar.hidden = true;
+    }
+  });
+  window.addEventListener('appinstalled', function () { if (bar) bar.hidden = true; });
+
+  document.querySelectorAll('[data-autosubmit]').forEach(function (el) {
+    el.addEventListener('change', function () { el.form.submit(); });
+  });
+
+  // ---------- Star rating input ----------
+  document.querySelectorAll('.stars-input').forEach(function (box) {
+    box.addEventListener('change', function () {
+      var v = Number((box.querySelector('input:checked') || {}).value || 0);
+      box.querySelectorAll('label').forEach(function (l) { l.classList.toggle('on', Number(l.dataset.v) <= v); });
+    });
+  });
+
+  // ---------- Product form: show software fields ----------
+  var kind = document.querySelector('[name=kind]');
+  if (kind) {
+    var sync = function () {
+      var sw = (document.querySelector('[name=kind]:checked') || kind).value === 'software';
+      document.querySelectorAll('[data-software]').forEach(function (el) { el.hidden = !sw; });
+      document.querySelectorAll('[data-book]').forEach(function (el) { el.hidden = sw; });
+    };
+    document.querySelectorAll('[name=kind]').forEach(function (r) { r.addEventListener('change', sync); });
+    sync();
+  }
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
   }

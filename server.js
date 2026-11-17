@@ -25,7 +25,8 @@ app.use(helmet({
     useDefaults: true,
     directives: {
       'img-src': ["'self'", 'data:', 'blob:'],
-      'script-src': ["'self'"],
+      'script-src': ["'self'", "'wasm-unsafe-eval'"],
+      'worker-src': ["'self'", 'blob:'],
       'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       'font-src': ["'self'", 'https://fonts.gstatic.com'],
       'form-action': ["'self'", 'https://*.opaycheckout.com'],
@@ -38,7 +39,15 @@ app.use(helmet({
 app.use('/payments/opay/webhook', express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '7d',
+  setHeaders: (res, file) => { if (file.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache'); },
+}));
+// PDF.js (in-app reader) served straight from node_modules
+const PDFJS = path.dirname(require.resolve('pdfjs-dist/package.json'));
+for (const dir of ['legacy/build', 'cmaps', 'standard_fonts', 'wasm', 'iccs']) {
+  app.use('/vendor/pdfjs/' + dir, express.static(path.join(PDFJS, dir), { maxAge: '30d' }));
+}
 
 const secret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 if (!process.env.SESSION_SECRET) console.warn('[warn] SESSION_SECRET not set — sessions will reset on every restart.');
@@ -64,6 +73,7 @@ app.use('/', require('./src/routes/public'));
 app.use('/', require('./src/routes/auth'));
 app.use('/', require('./src/routes/shop'));
 app.use('/payments', require('./src/routes/payments'));
+app.use('/author', require('./src/routes/author'));
 app.use('/admin', require('./src/routes/admin'));
 
 app.use((req, res) => res.status(404).render('error', { title: 'Not found', message: 'That page does not exist.' }));

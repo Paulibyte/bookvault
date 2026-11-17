@@ -1,6 +1,6 @@
 <%- include('_top') %>
 <div class="section-title"><h1 style="margin:0">Dashboard</h1><a class="btn accent" href="/admin/products/new">＋ Add product</a></div>
-<% warnings.forEach(function(w){ %><div class="warnbar">⚠️ <%= w %> <a href="/admin/settings">Open settings</a></div><% }) %>
+<% warnings.forEach(function(w){ %><div class="warnbar">⚠️ <%= w %> <a href="<%= /title/.test(w) ? '/admin/products?f=review' : /application/.test(w) ? '/admin/authors?status=pending' : /payout/.test(w) ? '/admin/payouts' : '/admin/settings' %>">Open</a></div><% }) %>
 <div class="kpis">
   <div class="card kpi hl"><div class="k">Total revenue</div><div class="v"><%= naira(stats.revenue) %></div></div>
   <div class="card kpi"><div class="k">This month</div><div class="v"><%= naira(stats.revenueMonth) %></div></div>

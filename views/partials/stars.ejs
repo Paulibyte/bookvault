@@ -1,0 +1,1 @@
+<% const _r = Number(r) || 0; const _full = Math.round(_r); %><span class="stars" title="<%= _r.toFixed(1) %> out of 5"><% for (let i = 1; i <= 5; i++) { %><span class="<%= i <= _full ? '' : 'off' %>">★</span><% } %><% if (typeof n !== 'undefined') { %><small><%= _r ? _r.toFixed(1) : '' %> (<%= n %>)</small><% } %></span>
