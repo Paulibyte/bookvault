@@ -1,0 +1,29 @@
+<%- include('partials/head') %>
+<main class="page wrap">
+  <div class="spread"><h1>My library</h1><% if (pending) { %><a class="btn sm ghost" href="/orders"><%= pending %> order<%= pending > 1 ? 's' : '' %> awaiting payment</a><% } %></div>
+  <%- include('partials/flash') %>
+  <% if (!items.length) { %>
+    <div class="card empty"><h2>Nothing here yet</h2><p>Books you buy will appear here, ready to download.</p><a class="btn" href="/">Browse the store</a></div>
+  <% } else { %>
+  <div class="card tight small muted" style="margin-bottom:1rem">📱 <strong>How to open:</strong> download the .zip, extract it (tap it on most phones), then open the file and type the password shown here. PDFs open in any PDF reader; Word files open in Microsoft Word, WPS Office or LibreOffice.</div>
+  <div class="lib">
+    <% items.forEach(function(it){ const prot = it.protect && (it.file_type === 'pdf' || it.file_type === 'docx'); const left = limit ? Math.max(limit - it.download_count, 0) : null; %>
+    <div class="card lib-item">
+      <%- include('partials/thumb', { p: it }) %>
+      <div>
+        <div style="font-weight:650"><%= it.title %></div>
+        <div class="muted small"><%= it.file_type.toUpperCase() %> · Order <span class="mono"><%= it.reference %></span><% if (left !== null) { %> · <%= left %> download<%= left === 1 ? '' : 's' %> left<% } %></div>
+        <% if (prot && it.file_password) { %>
+          <div style="margin-top:.5rem" class="row"><span class="small muted">Password:</span><span class="pw"><span id="pw<%= it.id %>"><%= it.file_password %></span><button type="button" data-copy="#pw<%= it.id %>">Copy</button></span></div>
+        <% } %>
+      </div>
+      <div class="actions">
+        <% if (left === 0) { %><span class="small muted">Limit reached — contact us</span>
+        <% } else { %><a class="btn green" href="/download/<%= it.id %>" data-download>⬇ Download .zip</a><% } %>
+      </div>
+    </div>
+    <% }) %>
+  </div>
+  <% } %>
+</main>
+<%- include('partials/foot') %>

@@ -1,0 +1,29 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0"><%= u.full_name %></h1><a href="/admin/users" class="small">← Customers</a></div>
+<div class="two">
+  <div class="stack">
+    <div class="card"><h2>Orders</h2>
+      <% if (!orders.length) { %><p class="muted">No orders.</p><% } else { %>
+      <div class="table-wrap"><table><tbody><% orders.forEach(function(o){ %><tr><td class="mono"><a href="/admin/orders/<%= o.id %>"><%= o.reference %></a></td><td class="small"><%= o.titles %></td><td class="num"><%= naira(o.total_kobo) %></td><td><span class="status <%= o.status %>"><%= o.status.replace('_',' ') %></span></td></tr><% }) %></tbody></table></div><% } %>
+    </div>
+    <form class="card" method="post" action="/admin/grant" data-confirm="Add this product to the customer's library as paid?">
+      <h2>Give a product</h2><p class="small muted">For cash payments or gifts — adds a paid order and unlocks the download.</p>
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="user_id" value="<%= u.id %>">
+      <div class="field"><select name="product_id" required><option value="">Choose product…</option><% products.forEach(function(p){ %><option value="<%= p.id %>"><%= p.title %></option><% }) %></select></div>
+      <div class="field"><input type="text" name="note" placeholder="Note, e.g. paid cash in class"></div>
+      <button class="btn">Add to library</button>
+    </form>
+  </div>
+  <form class="card" method="post" action="/admin/users/<%= u.id %>">
+    <h2>Profile</h2>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label>Full name <span class="hint">(changing it regenerates their books)</span></label><input type="text" name="full_name" value="<%= u.full_name %>"></div>
+    <div class="field"><label>Email</label><input type="email" value="<%= u.email %>" disabled></div>
+    <div class="field"><label>Phone</label><input type="tel" name="phone" value="<%= u.phone || '' %>"></div>
+    <div class="field"><label>Set new password <span class="hint">(leave blank to keep)</span></label><input type="text" name="new_password" autocomplete="off"></div>
+    <label class="check"><input type="checkbox" name="is_blocked" value="1" <%= u.is_blocked ? 'checked' : '' %>><span>Block this account</span></label>
+    <label class="check" style="margin:.5rem 0 1rem"><input type="checkbox" name="is_admin" value="1" <%= u.is_admin ? 'checked' : '' %> <%= u.id === user.id ? 'disabled' : '' %>><span>Administrator</span></label>
+    <button class="btn">Save</button>
+  </form>
+</div>
+<%- include('_bottom') %>

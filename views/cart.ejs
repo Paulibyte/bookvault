@@ -1,0 +1,43 @@
+<%- include('partials/head') %>
+<main class="page wrap">
+  <h1>Your cart</h1>
+  <%- include('partials/flash') %>
+  <% if (!items.length) { %>
+    <div class="card empty"><p>Your cart is empty.</p><a class="btn" href="/">Browse the store</a></div>
+  <% } else { %>
+  <div class="layout-2">
+    <div class="card">
+      <% items.forEach(function(p){ %>
+      <div class="line">
+        <%- include('partials/thumb', { p: p }) %>
+        <div class="grow"><a href="/book/<%= p.slug %>" style="text-decoration:none;font-weight:600;color:inherit"><%= p.title %></a><div class="muted small"><%= p.file_type.toUpperCase() %><%= p.author ? ' · ' + p.author : '' %></div></div>
+        <div class="price"><%= naira(p.price_kobo) %></div>
+        <form method="post" action="/cart/remove/<%= p.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm ghost" aria-label="Remove">✕</button></form>
+      </div>
+      <% }) %>
+    </div>
+    <form class="card stack" method="post" action="/checkout" data-once>
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="spread"><span class="muted">Total</span><span class="price" style="font-size:1.6rem"><%= naira(total) %></span></div>
+      <% if (!user) { %>
+        <p class="small muted">You need an account so your books can be personalised with your name.</p>
+        <a class="btn accent block" href="/register?next=/cart">Create account to checkout</a>
+        <a class="btn ghost block" href="/login?next=/cart">I already have an account</a>
+      <% } else { %>
+        <div class="pay-opts">
+          <% const opayOn = settings.opay_enabled === '1' && opayReady; %>
+          <% if (opayOn) { %>
+          <label class="pay-opt"><input type="radio" name="method" value="opay" checked><span><strong>Pay online with OPay</strong><span class="small muted">Card, bank transfer, USSD or OPay wallet. Downloads unlock instantly.</span></span></label>
+          <% } %>
+          <% if (settings.bank_enabled === '1') { %>
+          <label class="pay-opt"><input type="radio" name="method" value="bank" <%= opayOn ? '' : 'checked' %>><span><strong>Direct bank deposit / transfer</strong><span class="small muted">Pay into our account and upload your receipt. Unlocks once we confirm.</span></span></label>
+          <% } %>
+        </div>
+        <button class="btn accent block">Place order</button>
+        <p class="small muted" style="margin:0">Books will be licensed to <strong><%= user.full_name %></strong>.</p>
+      <% } %>
+    </form>
+  </div>
+  <% } %>
+</main>
+<%- include('partials/foot') %>

@@ -1,0 +1,19 @@
+<%- include('partials/head') %>
+<main class="page wrap"><div class="mid stack">
+  <h1>How it works</h1>
+  <div class="card">
+    <ol class="steps">
+      <li><strong>Create an account</strong> with your real full name — it is printed on every page of the books you buy.</li>
+      <li><strong>Add books to your cart</strong> and choose how to pay: online with OPay (instant), or by direct bank transfer.</li>
+      <li><strong>Bank transfer?</strong> Pay into our account using your order number as the narration, then upload the receipt. We confirm it quickly.</li>
+      <li><strong>Download from My Library.</strong> Each book comes as a .zip file. Extract it and open the book with the password shown next to it.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2>Why is my book password-protected?</h2>
+    <p>Each copy is made just for you: your name and details appear on every page and it has its own password. This protects the authors' work and keeps prices low for everyone. Please don't share your copy — it can be traced back to you.</p>
+    <% if (settings.about_text) { %><p class="desc"><%= settings.about_text %></p><% } %>
+  </div>
+  <div class="row"><a class="btn accent" href="/">Browse the store</a><% if (!user) { %><a class="btn ghost" href="/register">Create account</a><% } %></div>
+</div></main>
+<%- include('partials/foot') %>

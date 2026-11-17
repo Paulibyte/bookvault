@@ -1,0 +1,15 @@
+<%- include('../partials/head') %>
+<% const awaitingCount = locals.awaitingCount || 0; %>
+<div class="admin">
+  <aside class="side">
+    <a href="/admin" class="<%= path === '/admin' || path === '/admin/' ? 'active' : '' %>">📊 Dashboard</a>
+    <a href="/admin/orders" class="<%= path.startsWith('/admin/orders') ? 'active' : '' %>">🧾 Orders<% if (awaitingCount) { %><span class="pill"><%= awaitingCount %></span><% } %></a>
+    <a href="/admin/products" class="<%= path.startsWith('/admin/products') ? 'active' : '' %>">📚 Products</a>
+    <a href="/admin/users" class="<%= path.startsWith('/admin/users') ? 'active' : '' %>">👥 Customers</a>
+    <a href="/admin/settings" class="<%= path.startsWith('/admin/settings') ? 'active' : '' %>">⚙️ Settings</a>
+    <div class="sep"></div>
+    <a href="/admin/products/new">＋ Add product</a>
+    <a href="/" target="_blank">↗ View store</a>
+  </aside>
+  <main>
+    <%- include('../partials/flash') %>

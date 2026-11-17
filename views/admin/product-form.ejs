@@ -1,0 +1,42 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0"><%= p.id ? 'Edit product' : 'Add product' %></h1><a href="/admin/products" class="small">← All products</a></div>
+<form method="post" action="/admin/products/<%= p.id || 'new' %>?_csrf=<%= csrf %>" enctype="multipart/form-data" data-once data-upload style="max-width:860px">
+  <fieldset>
+    <legend>Details</legend>
+    <div class="field"><label>Title</label><input type="text" name="title" value="<%= p.title || '' %>" required></div>
+    <div class="grid2">
+      <div class="field"><label>Author / Lecturer <span class="hint">(optional)</span></label><input type="text" name="author" value="<%= p.author || '' %>"></div>
+      <div class="field"><label>Price (₦)</label><input type="text" inputmode="decimal" name="price" value="<%= p.price_kobo != null ? (p.price_kobo / 100) : '' %>" placeholder="e.g. 2500 — use 0 for free" required></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Category</label><select name="category_id"><option value="">— None —</option><% categories.forEach(function(c){ %><option value="<%= c.id %>" <%= p.category_id === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %></select></div>
+      <div class="field"><label>…or new category</label><input type="text" name="new_category" placeholder="e.g. CEC 411 — Traffic Engineering"></div>
+    </div>
+    <div class="field"><label>Description</label><textarea name="description" placeholder="What's inside, which course/level it's for, edition…"><%= p.description || '' %></textarea></div>
+  </fieldset>
+  <fieldset>
+    <legend>Files</legend>
+    <div class="grid2">
+      <div class="field">
+        <label>Cover image <span class="hint">(JPG/PNG)</span></label>
+        <% if (p.cover_file) { %><img src="/cover/<%= p.cover_file %>" alt="" style="width:90px;border-radius:6px;margin-bottom:.5rem"><% } %>
+        <input type="file" name="cover" accept="image/*">
+      </div>
+      <div class="field">
+        <label>Product file <span class="hint">(PDF, Word .docx, ZIP or any file · max <%= maxMb %> MB)</span></label>
+        <% if (p.original_name) { %><div class="small muted" style="margin-bottom:.4rem">Current: <strong><%= p.original_name %></strong> (<%= humanSize(p.file_size) %>) — upload only to replace</div><% } %>
+        <input type="file" name="file" <%= p.id ? '' : 'required' %>>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="protect" value="1" <%= p.protect ? 'checked' : '' %>><span>Watermark with buyer's name and lock with a unique password<br><span class="hint">Applies to PDF and Word (.docx) only. ZIP and other files are delivered as uploaded. Old .doc files: save as .docx first.</span></span></label>
+    <label class="check" style="margin-top:.6rem"><input type="checkbox" name="is_active" value="1" <%= p.is_active ? 'checked' : '' %>><span>Show in store</span></label>
+  </fieldset>
+  <div class="row">
+    <button class="btn accent" data-busy-text="Uploading… please wait">Save product</button>
+    <a class="btn ghost" href="/admin/products">Cancel</a>
+  </div>
+</form>
+<% if (p.id) { %>
+<form method="post" action="/admin/products/<%= p.id %>/delete" style="margin-top:2rem" data-confirm="Delete this product? If it has been sold it will be hidden instead."><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm danger">Delete product</button></form>
+<% } %>
+<%- include('_bottom') %>

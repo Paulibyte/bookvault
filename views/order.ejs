@@ -1,0 +1,63 @@
+<%- include('partials/head') %>
+<main class="page wrap">
+  <%- include('partials/flash') %>
+  <div class="spread" style="margin-bottom:1rem">
+    <div><h1 style="margin:0">Order <span class="mono"><%= o.reference %></span></h1><span class="muted small"><%= new Date(o.created_at + 'Z').toLocaleString('en-GB') %></span></div>
+    <span class="status <%= o.status %>"><%= o.status.replace('_', ' ') %></span>
+  </div>
+  <div class="layout-2">
+    <div class="stack">
+      <% if (o.status === 'paid') { %>
+        <div class="card"><h2>Payment confirmed 🎉</h2><p>Your files are ready in your library, each with its own password.</p><a class="btn green" href="/library">Go to My Library</a></div>
+      <% } else if (o.status === 'cancelled') { %>
+        <div class="card"><p>This order was cancelled.</p><a class="btn" href="/">Back to store</a></div>
+      <% } else if (o.method === 'opay') { %>
+        <div class="card stack">
+          <h2>Complete your OPay payment</h2>
+          <p class="muted">If you already paid, check the status. Otherwise, continue to OPay.</p>
+          <div class="row">
+            <a class="btn accent" href="/payments/opay/start/<%= o.reference %>">Pay <%= naira(o.total_kobo) %> with OPay</a>
+            <form method="post" action="/payments/opay/check/<%= o.reference %>" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn ghost">I've paid — check status</button></form>
+          </div>
+          <% if (settings.bank_enabled === '1') { %><p class="small muted" style="margin:0">Prefer bank transfer? Cancel this order and choose bank deposit at checkout.</p><% } %>
+        </div>
+      <% } else { %>
+        <% if (o.status === 'rejected') { %><div class="flash error"><strong>We couldn't verify your payment.</strong> <%= o.admin_note || '' %> You can upload a new receipt below.</div><% } %>
+        <% if (o.status === 'awaiting_confirmation') { %><div class="flash info">Receipt received<%= o.bank_sender_name ? ' from ' + o.bank_sender_name : '' %>. We're confirming your payment — your downloads will appear in <a href="/library">My Library</a>. You can update your receipt below if needed.</div><% } %>
+        <div class="card stack">
+          <h2>Pay by bank transfer</h2>
+          <ol class="steps">
+            <li>Transfer <strong><%= naira(o.total_kobo) %></strong> to the account below. Use <strong class="mono"><%= o.reference %></strong> as the narration/description.</li>
+            <li>Upload a screenshot or PDF of the transfer receipt.</li>
+            <li>We confirm it, and your personalised files unlock in My Library.</li>
+          </ol>
+          <div class="bankbox">
+            <div class="k">Bank</div><div class="v"><%= settings.bank_name || '—' %></div>
+            <div class="k">Account number</div><div class="v acct"><span id="acct"><%= settings.bank_account_number || '—' %></span><button type="button" class="copy" data-copy="#acct">Copy</button></div>
+            <div class="k">Account name</div><div class="v"><%= settings.bank_account_name || '—' %></div>
+            <div class="k">Amount</div><div class="v"><%= naira(o.total_kobo) %></div>
+            <div class="k">Narration</div><div class="v mono" style="margin:0"><span id="ref"><%= o.reference %></span><button type="button" class="copy" data-copy="#ref">Copy</button></div>
+          </div>
+          <% if (settings.bank_instructions) { %><p class="small muted" style="margin:0"><%= settings.bank_instructions %></p><% } %>
+          <form method="post" action="/order/<%= o.reference %>/proof?_csrf=<%= csrf %>" enctype="multipart/form-data" data-once>
+            <div class="field"><label>Name on the account you paid from</label><input type="text" name="sender_name" value="<%= o.bank_sender_name || '' %>" required></div>
+            <div class="field"><label>Payment receipt <span class="hint">(screenshot or PDF, max 8 MB)</span></label><input type="file" name="proof" accept="image/*,.pdf" <%= o.bank_proof_file ? '' : 'required' %>></div>
+            <div class="field"><label>Note <span class="hint">(optional)</span></label><input type="text" name="note" value="<%= o.bank_note || '' %>" placeholder="e.g. paid from my mum's account"></div>
+            <button class="btn accent"><%= o.bank_proof_file ? 'Update receipt' : 'Submit receipt' %></button>
+          </form>
+        </div>
+      <% } %>
+    </div>
+    <div class="card">
+      <h3>Items</h3>
+      <% o.items.forEach(function(it){ %>
+        <div class="line"><%- include('partials/thumb', { p: it }) %><div class="grow small"><strong><%= it.title %></strong></div><div><%= naira(it.price_kobo) %></div></div>
+      <% }) %>
+      <div class="spread" style="margin-top:.8rem"><strong>Total</strong><span class="price"><%= naira(o.total_kobo) %></span></div>
+      <% if (o.status === 'pending') { %>
+      <form method="post" action="/order/<%= o.reference %>/cancel" style="margin-top:1rem" data-confirm="Cancel this order?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm ghost">Cancel order</button></form>
+      <% } %>
+    </div>
+  </div>
+</main>
+<%- include('partials/foot') %>

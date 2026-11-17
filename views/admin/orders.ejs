@@ -1,0 +1,34 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0">Orders</h1>
+  <form class="row" method="get" action="/admin/orders"><input type="search" name="q" value="<%= q %>" placeholder="Reference, name, email, sender…" style="width:260px"><% if (status) { %><input type="hidden" name="status" value="<%= status %>"><% } %><button class="btn sm">Search</button></form>
+</div>
+<div class="tabs-inline">
+  <% [['','All'],['awaiting_confirmation','To confirm'],['paid','Paid'],['pending','Unpaid'],['rejected','Rejected'],['cancelled','Cancelled']].forEach(function(t){ %>
+  <a class="chip <%= status === t[0] ? 'on' : '' %>" href="/admin/orders<%= t[0] ? '?status=' + t[0] : '' %>"><%= t[1] %></a>
+  <% }) %>
+</div>
+<div class="card">
+<% if (!orders.length) { %><div class="empty">No orders found.</div><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>Order</th><th>Buyer</th><th>Items</th><th>Method</th><th class="num">Total</th><th>Status</th><th></th></tr></thead>
+<tbody>
+<% orders.forEach(function(o){ %>
+<tr>
+  <td class="mono"><%= o.reference %><div class="muted small"><%= o.created_at.slice(0,16) %></div></td>
+  <td><%= o.full_name %><div class="muted small"><%= o.phone || o.email %></div></td>
+  <td class="small" style="max-width:260px"><%= o.titles %></td>
+  <td><%= o.method === 'opay' ? 'OPay' : 'Bank' %><% if (o.bank_sender_name) { %><div class="muted small">from <%= o.bank_sender_name %></div><% } %></td>
+  <td class="num"><%= naira(o.total_kobo) %></td>
+  <td><span class="status <%= o.status %>"><%= o.status.replace('_',' ') %></span></td>
+  <td class="num" style="white-space:nowrap">
+    <% if (o.status === 'awaiting_confirmation') { %>
+      <form method="post" action="/admin/orders/<%= o.id %>/confirm" class="inline" data-confirm="Confirm you received <%= naira(o.total_kobo) %> from <%= o.bank_sender_name %>?"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="/admin/orders?status=<%= status %>"><button class="btn sm green">Confirm</button></form>
+    <% } %>
+    <a class="btn sm ghost" href="/admin/orders/<%= o.id %>">Open</a>
+  </td>
+</tr>
+<% }) %>
+</tbody></table></div>
+<% } %>
+</div>
+<%- include('_bottom') %>

@@ -1,0 +1,53 @@
+<%- include('partials/head') %>
+<section class="hero">
+  <div class="wrap">
+    <h1>Your course textbooks, delivered in minutes.</h1>
+    <p><%= settings.store_tagline %></p>
+    <form class="search" action="/" method="get">
+      <input type="search" name="q" value="<%= q %>" placeholder="Search by title, author or course…" aria-label="Search">
+      <% if (cat) { %><input type="hidden" name="cat" value="<%= cat %>"><% } %>
+      <button class="btn accent">Search</button>
+    </form>
+    <div class="trust"><span>Pay by bank transfer or OPay</span><span>Instant download after confirmation</span><span>Re-download anytime from your library</span></div>
+  </div>
+</section>
+<main class="wrap" style="padding-bottom:4rem">
+  <div class="filters">
+    <div class="chips">
+      <a class="chip <%= !cat && !type ? 'on' : '' %>" href="/">All</a>
+      <% categories.forEach(function(c){ %><a class="chip <%= cat === c.id ? 'on' : '' %>" href="/?cat=<%= c.id %>"><%= c.name %> <span class="muted">· <%= c.n %></span></a><% }) %>
+      <a class="chip <%= type === 'pdf' ? 'on' : '' %>" href="/?type=pdf">PDF</a>
+      <a class="chip <%= type === 'docx' ? 'on' : '' %>" href="/?type=docx">Word</a>
+      <a class="chip <%= type === 'zip' ? 'on' : '' %>" href="/?type=zip">Files &amp; packs</a>
+    </div>
+  </div>
+  <div style="margin-top:1.5rem"><%- include('partials/flash') %></div>
+  <% if (q) { %><p class="muted" style="margin-top:1rem"><%= products.length %> result<%= products.length === 1 ? '' : 's' %> for “<%= q %>” · <a href="/">clear</a></p><% } %>
+  <% if (!products.length) { %>
+    <div class="empty card" style="margin-top:1.5rem"><h2>No items yet</h2><p>Check back soon<% if (user && user.is_admin) { %> — or <a href="/admin/products/new">add your first book</a><% } %>.</p></div>
+  <% } %>
+  <div class="grid">
+    <% products.forEach(function(p){ %>
+    <article class="book">
+      <a class="cover-link" href="/book/<%= p.slug %>">
+        <%- include('partials/cover', { p: p, showBadge: true }) %>
+      </a>
+      <div class="body">
+        <a class="cover-link title" href="/book/<%= p.slug %>"><%= p.title %></a>
+        <% if (p.author) { %><div class="author"><%= p.author %></div><% } %>
+        <div class="foot">
+          <span class="price"><%= p.price_kobo ? naira(p.price_kobo) : 'Free' %></span>
+          <% if (owned.has(p.id)) { %>
+            <a class="btn sm green" href="/library">Owned</a>
+          <% } else if (cart.has(p.id)) { %>
+            <a class="btn sm ghost" href="/cart">In cart</a>
+          <% } else { %>
+            <form method="post" action="/cart/add/<%= p.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">Add</button></form>
+          <% } %>
+        </div>
+      </div>
+    </article>
+    <% }) %>
+  </div>
+</main>
+<%- include('partials/foot') %>

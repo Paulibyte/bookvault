@@ -1,0 +1,64 @@
+<%- include('_top') %>
+<div class="section-title">
+  <div><h1 style="margin:0">Order <span class="mono"><%= o.reference %></span></h1><span class="muted small">Created <%= o.created_at %> UTC<%= o.paid_at ? ' · Paid ' + o.paid_at + ' UTC' : '' %></span></div>
+  <span class="status <%= o.status %>" style="font-size:.9rem"><%= o.status.replace('_',' ') %></span>
+</div>
+<div class="two">
+  <div class="stack">
+    <div class="card">
+      <h2>Items</h2>
+      <div class="table-wrap"><table><thead><tr><th>Product</th><th>Password</th><th class="num">Downloads</th><th class="num">Price</th><th></th></tr></thead><tbody>
+      <% o.items.forEach(function(it){ %>
+      <tr><td><%= it.title %><div class="muted small"><%= it.file_type %></div></td>
+        <td class="mono"><%= (it.protect && (it.file_type==='pdf'||it.file_type==='docx')) ? (it.file_password || '—') : 'n/a' %></td>
+        <td class="num"><%= it.download_count %></td><td class="num"><%= naira(it.price_kobo) %></td>
+        <td class="num" style="white-space:nowrap">
+          <% if (o.status === 'paid') { %><a class="btn sm ghost" href="/admin/items/<%= it.id %>/download" data-download>Download</a>
+          <form method="post" action="/admin/items/<%= it.id %>/reset" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm ghost" title="Reset download counter">Reset</button></form><% } %>
+        </td></tr>
+      <% }) %>
+      </tbody></table></div>
+      <div class="spread" style="margin-top:.6rem"><strong>Total</strong><span class="price"><%= naira(o.total_kobo) %></span></div>
+    </div>
+    <% if (o.method === 'bank' && o.bank_proof_file) { %>
+    <div class="card proof">
+      <h2>Payment receipt</h2>
+      <p>Paid by <strong><%= o.bank_sender_name %></strong><%= o.bank_note ? ' — “' + o.bank_note + '”' : '' %></p>
+      <% if (/\.pdf$/i.test(o.bank_proof_file)) { %><a class="btn ghost" href="/admin/proof/<%= o.bank_proof_file %>" target="_blank">Open PDF receipt</a>
+      <% } else { %><a href="/admin/proof/<%= o.bank_proof_file %>" target="_blank"><img src="/admin/proof/<%= o.bank_proof_file %>" alt="Receipt"></a><% } %>
+    </div>
+    <% } %>
+    <div class="card">
+      <h2>Download log</h2>
+      <% if (!downloads.length) { %><p class="muted">No downloads yet.</p><% } else { %>
+      <div class="table-wrap"><table><tbody><% downloads.forEach(function(d){ %><tr><td class="small"><%= d.created_at %></td><td class="small"><%= d.title %></td><td class="small mono"><%= d.ip %></td><td class="small muted" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= d.user_agent %></td></tr><% }) %></tbody></table></div>
+      <% } %>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h2>Buyer</h2>
+      <p style="margin:0"><strong><%= o.full_name %></strong><br><%= o.email %><br><%= o.phone %></p>
+      <% if (o.phone) { %><a class="btn sm ghost" style="margin-top:.8rem" target="_blank" rel="noopener" href="https://wa.me/<%= o.phone.replace(/[^0-9]/g,'').replace(/^0/,'234') %>">Message on WhatsApp</a><% } %>
+    </div>
+    <div class="card stack">
+      <h2>Payment</h2>
+      <p style="margin:0">Method: <strong><%= o.method === 'opay' ? 'OPay' : 'Bank transfer' %></strong><% if (o.opay_order_no && o.opay_order_no !== 'started') { %><br>OPay order: <span class="mono"><%= o.opay_order_no %></span><% } %></p>
+      <% if (o.admin_note) { %><p class="small muted" style="margin:0">Note: <%= o.admin_note %></p><% } %>
+      <% if (o.status !== 'paid') { %>
+        <form method="post" action="/admin/orders/<%= o.id %>/confirm" data-confirm="Mark this order as PAID and unlock downloads?">
+          <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="/admin/orders/<%= o.id %>">
+          <div class="field"><label>Note <span class="hint">(optional)</span></label><input type="text" name="note" placeholder="e.g. seen in GTB statement"></div>
+          <button class="btn green block">✓ Confirm payment &amp; unlock</button>
+        </form>
+        <form method="post" action="/admin/orders/<%= o.id %>/reject">
+          <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="/admin/orders/<%= o.id %>">
+          <div class="field"><label>Reason shown to buyer</label><input type="text" name="note" placeholder="e.g. amount not received yet"></div>
+          <button class="btn danger block">Reject</button>
+        </form>
+        <% if (o.method === 'opay') { %><form method="post" action="/admin/orders/<%= o.id %>/verify-opay"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn ghost block">Re-check with OPay</button></form><% } %>
+      <% } %>
+    </div>
+  </div>
+</div>
+<%- include('_bottom') %>

@@ -1,0 +1,13 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0">Customers</h1>
+  <form class="row" method="get"><input type="search" name="q" value="<%= q %>" placeholder="Name, email or phone" style="width:240px"><button class="btn sm">Search</button></form></div>
+<div class="card"><div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Contact</th><th>Joined</th><th class="num">Orders</th><th class="num">Spent</th><th></th></tr></thead><tbody>
+<% users.forEach(function(u){ %>
+<tr><td><strong><%= u.full_name %></strong> <% if (u.is_admin) { %><span class="badge">admin</span><% } %><% if (u.is_blocked) { %><span class="status rejected">blocked</span><% } %></td>
+<td class="small"><%= u.email %><br><%= u.phone %></td><td class="small"><%= u.created_at.slice(0,10) %></td>
+<td class="num"><%= u.orders %></td><td class="num"><%= naira(u.spent) %></td>
+<td class="num"><a class="btn sm ghost" href="/admin/users/<%= u.id %>">Open</a></td></tr>
+<% }) %>
+</tbody></table></div></div>
+<%- include('_bottom') %>

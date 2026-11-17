@@ -1,0 +1,13 @@
+<footer class="site-foot">
+  <div class="wrap spread">
+    <div>© <%= new Date().getFullYear() %> <%= settings.store_name %> · Every copy is personalised to its buyer.</div>
+    <div class="row">
+      <% if (settings.support_whatsapp) { %><a href="https://wa.me/<%= settings.support_whatsapp.replace(/[^0-9]/g,'') %>" target="_blank" rel="noopener">WhatsApp support</a><% } %>
+      <% if (settings.support_phone) { %><a href="tel:<%= settings.support_phone %>"><%= settings.support_phone %></a><% } %>
+      <% if (settings.support_email) { %><a href="mailto:<%= settings.support_email %>"><%= settings.support_email %></a><% } %>
+      <a href="/how-it-works">How it works</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

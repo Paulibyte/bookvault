@@ -1,0 +1,45 @@
+<%- include('partials/head') %>
+<main class="page wrap">
+  <%- include('partials/flash') %>
+  <p class="small"><a href="/">← Back to store</a></p>
+  <div class="product">
+    <%- include('partials/cover', { p: p, showBadge: false }) %>
+    <div>
+      <% if (p.category) { %><div class="muted small" style="text-transform:uppercase;letter-spacing:.06em;font-weight:700"><%= p.category %></div><% } %>
+      <h1><%= p.title %></h1>
+      <% if (p.author) { %><p class="muted" style="font-size:1.05rem">by <%= p.author %></p><% } %>
+      <div class="meta">
+        <span class="badge <%= p.file_type %>"><%= p.file_type === 'docx' ? 'Word document' : p.file_type === 'other' ? 'File' : p.file_type.toUpperCase() %></span>
+        <% if (p.pages) { %><span class="badge"><%= p.pages %> pages</span><% } %>
+        <span class="badge"><%= humanSize(p.file_size) %></span>
+      </div>
+      <div class="buybox">
+        <span class="price"><%= p.price_kobo ? naira(p.price_kobo) : 'Free' %></span>
+        <% if (owned) { %>
+          <a class="btn green" href="/library">You own this — go to library</a>
+        <% } else if (inCart) { %>
+          <a class="btn accent" href="/cart">In your cart — checkout</a>
+        <% } else { %>
+          <form method="post" action="/cart/add/<%= p.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="buy_now" value="1"><button class="btn accent">Buy now</button></form>
+          <form method="post" action="/cart/add/<%= p.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn ghost">Add to cart</button></form>
+        <% } %>
+      </div>
+      <% if (p.protect && (p.file_type === 'pdf' || p.file_type === 'docx')) { %>
+      <div class="protect-note"><span style="font-size:1.3rem">🔒</span><div>Your copy is personalised: <strong>your name is printed on every page</strong> and it opens with a <strong>password unique to you</strong>, shown in your library after payment. Download comes as a .zip file.</div></div>
+      <% } else { %>
+      <div class="protect-note"><span style="font-size:1.3rem">📦</span><div>Delivered as a .zip download in your library as soon as payment is confirmed.</div></div>
+      <% } %>
+      <% if (p.description) { %><h2 style="margin-top:1.8rem">About this item</h2><div class="desc"><%= p.description %></div><% } %>
+    </div>
+  </div>
+  <% if (related.length) { %>
+  <h2 style="margin-top:3rem">You may also need</h2>
+  <div class="grid">
+    <% related.forEach(function(r){ %>
+    <article class="book"><a class="cover-link" href="/book/<%= r.slug %>"><%- include('partials/cover', { p: r, showBadge: true }) %></a>
+      <div class="body"><a class="cover-link title" href="/book/<%= r.slug %>"><%= r.title %></a><div class="foot"><span class="price"><%= r.price_kobo ? naira(r.price_kobo) : 'Free' %></span></div></div></article>
+    <% }) %>
+  </div>
+  <% } %>
+</main>
+<%- include('partials/foot') %>
