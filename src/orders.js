@@ -61,14 +61,59 @@ function markPaid(orderId, { note = null, opayOrderNo = null } = {}) {
   });
   const res = tx();
   // Automatic royalty payout requests once an author crosses the threshold
-  for (const aid of authorsTouched) {
-    const a = db.prepare('SELECT auto_payout FROM authors WHERE id = ?').get(aid);
-    if (a && a.auto_payout) {
-      const pending = db.prepare("SELECT COUNT(*) c FROM payouts WHERE author_id = ? AND status = 'requested'").get(aid).c;
-      if (!pending) requestPayout(aid, 'auto');
-    }
-  }
+  for (const aid of authorsTouched) maybeAutoPayout(aid);
   return res;
+}
+
+/** Raise an automatic payout request if the author has auto-payout on and has crossed the threshold. */
+function maybeAutoPayout(authorId) {
+  const a = db.prepare('SELECT auto_payout FROM authors WHERE id = ?').get(authorId);
+  if (!a || !a.auto_payout) return null;
+  const pending = db.prepare("SELECT COUNT(*) c FROM payouts WHERE author_id = ? AND status = 'requested'").get(authorId).c;
+  if (pending) return null;
+  const r = requestPayout(authorId, 'auto');
+  return r.error ? null : r;
+}
+
+/** Past paid sales of a product (excluding admin test copies). */
+function productSales(productId) {
+  return db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(oi.price_kobo),0) gross, COALESCE(SUM(oi.author_earning_kobo),0) royalties
+    FROM order_items oi JOIN orders o ON o.id = oi.order_id
+    WHERE oi.product_id = ? AND o.status = 'paid' AND o.admin_note IS NOT 'Admin test copy'`).get(productId);
+}
+
+/**
+ * Assign a product to a verified author (or back to the store with null) and move ALL its past sales
+ * and royalties to the new owner. Royalties are recalculated with the new author's commission.
+ */
+function reassignProduct(productId, newAuthorId) {
+  const p = db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
+  if (!p) throw new Error('Product not found');
+  newAuthorId = newAuthorId ? Number(newAuthorId) : null;
+  let a = null;
+  if (newAuthorId) {
+    a = db.prepare("SELECT * FROM authors WHERE id = ? AND status = 'verified'").get(newAuthorId);
+    if (!a) throw new Error('Choose a verified author.');
+  }
+  if ((p.author_id || null) === newAuthorId) return { changed: false };
+  const prevAuthorId = p.author_id || null;
+  const pct = a ? commissionFor(a.id) : null;
+  const result = db.transaction(() => {
+    db.prepare('UPDATE products SET author_id = ?, author = COALESCE(?, author), updated_at = datetime(\'now\') WHERE id = ?')
+      .run(newAuthorId, a ? a.pen_name : null, p.id);
+    const items = db.prepare(`SELECT oi.id, oi.price_kobo FROM order_items oi JOIN orders o ON o.id = oi.order_id
+      WHERE oi.product_id = ? AND o.status = 'paid' AND o.admin_note IS NOT 'Admin test copy'`).all(p.id);
+    const upd = db.prepare('UPDATE order_items SET author_id = ?, commission_pct = ?, author_earning_kobo = ? WHERE id = ?');
+    let total = 0;
+    for (const it of items) {
+      const earning = a ? Math.floor(it.price_kobo * (100 - pct) / 100) : 0;
+      total += earning;
+      upd.run(newAuthorId, pct, earning, it.id);
+    }
+    return { changed: true, moved: items.length, royalties: total, pct, prevAuthorId, author: a };
+  })();
+  if (a) result.autoPayout = maybeAutoPayout(a.id);
+  return result;
 }
 
 /** Product IDs the user already owns (paid). */
@@ -83,4 +128,4 @@ function refreshRating(productId) {
   db.prepare('UPDATE products SET rating_avg = ?, rating_count = ? WHERE id = ?').run(Math.round(r.a * 10) / 10, r.n, productId);
 }
 
-module.exports = { markPaid, ownedProductIds, commissionFor, authorBalance, requestPayout, refreshRating };
+module.exports = { reassignProduct, productSales, maybeAutoPayout, markPaid, ownedProductIds, commissionFor, authorBalance, requestPayout, refreshRating };

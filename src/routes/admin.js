@@ -73,7 +73,11 @@ router.get('/products', (req, res) => {
 
 function productFormData(p) {
   const author = p.author_id ? db.prepare('SELECT a.*, u.email FROM authors a JOIN users u ON u.id = a.user_id WHERE a.id = ?').get(p.author_id) : null;
-  return { p, author, cr: p.copyright_json ? JSON.parse(p.copyright_json) : null, categories: db.prepare('SELECT * FROM categories ORDER BY name').all(),
+  const verifiedAuthors = db.prepare(`SELECT a.id, a.pen_name, a.legal_name, a.institution, a.commission_pct FROM authors a
+    WHERE a.status = 'verified' OR a.id = ? ORDER BY a.pen_name COLLATE NOCASE`).all(p.author_id || 0);
+  const sales = p.id ? require('../orders').productSales(p.id) : { n: 0, gross: 0, royalties: 0 };
+  return { p, author, verifiedAuthors, sales, defaultPct: Number(getSettings().default_commission_pct),
+    cr: p.copyright_json ? JSON.parse(p.copyright_json) : null, categories: db.prepare('SELECT * FROM categories ORDER BY name').all(),
     maxMb: MAX_MB, platforms: PLATFORMS, canConvert: require('../watermark/convert').available() };
 }
 
@@ -98,6 +102,11 @@ router.post('/products/new', productFields, async (req, res, next) => {
       nairaToKobo(req.body.price), cover, meta.stored, meta.original, meta.type, meta.size, meta.pages,
       kind === 'software' ? 0 : (req.body.protect ? 1 : 0), req.body.is_active ? 1 : 0, kind,
       kind === 'software' ? (req.body.platform || '').trim() : null, kind === 'software' ? (req.body.version || '').trim() : null, meta.readerPdf);
+    const newId = db.prepare('SELECT last_insert_rowid() id').get().id;
+    if (Number(req.body.author_id)) {
+      try { require('../orders').reassignProduct(newId, Number(req.body.author_id)); }
+      catch (e) { flash(req, 'error', e.message); }
+    }
     let note = '';
     if (kind === 'software') note = ' — software is delivered exactly as uploaded';
     else if (!(meta.type === 'pdf' || meta.type === 'docx')) note = ' (this file type is delivered as-is, without watermark/password)';
@@ -132,7 +141,7 @@ router.post('/products/:id', productFields, async (req, res, next) => {
     db.prepare(`UPDATE products SET title=?, slug=?, author=?, category_id=?, description=?, price_kobo=?, cover_file=?,
       stored_file=?, original_name=?, file_type=?, file_size=?, pages=?, reader_pdf=?, protect=?, is_active=?, kind=?, platform=?, version=?,
       updated_at=datetime('now') WHERE id=?`).run(
-      title, title === p.title ? p.slug : uniqueSlug(title, p.id), p.author_id ? p.author : (req.body.author || '').trim(), categoryId(req.body),
+      title, title === p.title ? p.slug : uniqueSlug(title, p.id), Number(req.body.author_id) ? p.author : (req.body.author || '').trim(), categoryId(req.body),
       (req.body.description || '').trim(), nairaToKobo(req.body.price), cover,
       meta ? meta.stored : p.stored_file, meta ? meta.original : p.original_name, meta ? meta.type : p.file_type,
       meta ? meta.size : p.file_size, meta ? meta.pages : p.pages, meta ? meta.readerPdf : p.reader_pdf, protect, req.body.is_active ? 1 : 0,
@@ -141,6 +150,19 @@ router.post('/products/:id', productFields, async (req, res, next) => {
       const n = clearDeliveries(p.id);
       if (meta) removeStored(p.stored_file, p.reader_pdf);
       if (n) flash(req, 'info', `${n} previous buyer copies will be regenerated on their next download.`);
+    }
+    // Author assignment: moves every past sale and its royalties to the chosen author
+    if ('author_id' in req.body) {
+      try {
+        const r = require('../orders').reassignProduct(p.id, Number(req.body.author_id) || null);
+        if (r.changed && r.author) {
+          flash(req, 'success', `Assigned to ${r.author.pen_name}. ${r.moved} past sale${r.moved === 1 ? '' : 's'} moved — ${'₦' + (r.royalties / 100).toLocaleString('en-NG')} royalties credited at ${100 - r.pct}%.` +
+            (r.autoPayout ? ' An automatic payout request was raised.' : ''));
+          if (r.prevAuthorId) flash(req, 'info', 'Royalties for these sales were removed from the previous author. If they were already paid out, that author\'s balance may now be negative until new sales cover it.');
+        } else if (r.changed) {
+          flash(req, 'info', `Removed from the author. ${r.moved} past sale${r.moved === 1 ? '' : 's'} now belong to the store.`);
+        }
+      } catch (e) { flash(req, 'error', e.message); }
     }
     flash(req, 'success', 'Product saved.');
     res.redirect(`/admin/products${p.status === 'pending' ? '/' + p.id : ''}`);

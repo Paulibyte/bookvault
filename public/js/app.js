@@ -116,6 +116,35 @@
     sync();
   }
 
+  // ---------- Admin: assign product to a verified author ----------
+  var asel = document.querySelector('[data-author-select]');
+  if (asel) {
+    var note = document.querySelector('[data-author-note]');
+    var nameBox = document.querySelector('[data-author-name]');
+    var naira = function (k) { return '₦' + (k / 100).toLocaleString('en-NG'); };
+    var syncAuthor = function () {
+      var opt = asel.options[asel.selectedIndex];
+      var chosen = asel.value, current = asel.dataset.current || '';
+      var n = Number(asel.dataset.sales), gross = Number(asel.dataset.gross);
+      nameBox.hidden = !!chosen;
+      if (chosen === current || !n) { note.hidden = true; return; }
+      if (chosen) {
+        var pct = opt.dataset.pct !== '' ? Number(opt.dataset.pct) : Number(asel.dataset.defaultPct);
+        var earn = Math.floor(gross * (100 - pct) / 100);
+        note.innerHTML = '↪ All <strong>' + n + '</strong> past sale' + (n === 1 ? '' : 's') + ' (' + naira(gross) + ') will move to <strong>' + opt.text.split(' — ')[0] +
+          '</strong>, crediting about <strong>' + naira(earn) + '</strong> in royalties (' + (100 - pct) + '% share).' + (current ? ' They will be removed from the current author.' : '');
+      } else {
+        note.innerHTML = '↪ All <strong>' + n + '</strong> past sale' + (n === 1 ? '' : 's') + ' will move back to the store, and the current author will lose those royalties.';
+      }
+      note.hidden = false;
+    };
+    asel.addEventListener('change', syncAuthor);
+    syncAuthor();
+    asel.form.addEventListener('submit', function (e) {
+      if (!note.hidden && !window.confirm(note.textContent.replace('↪ ', '') + '\n\nContinue?')) { e.preventDefault(); e.stopImmediatePropagation(); delete asel.form.dataset.sent; }
+    }, true);
+  }
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
   }

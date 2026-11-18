@@ -116,13 +116,13 @@ tar czf ~/bookvault-backup-$(date +%F).tgz -C /var/www/bookvault data storage
 ## Updating an existing install
 Your existing database upgrades itself automatically the first time the new version starts. Products, orders and buyers are kept.
 ```bash
-cd /var/www/bookvault && git pull && npm install --omit=dev && pm2 restart bookvault
+cd /var/www/bookvault && git pull && npm ci --omit=dev && pm2 restart bookvault
 ```
 If npm warns about install scripts, run `npm install-scripts approve better-sqlite3 && npm rebuild better-sqlite3`.
 
 ## Updating (general)
 ```bash
-cd /var/www/bookvault && git pull && npm install --omit=dev && pm2 restart bookvault
+cd /var/www/bookvault && git pull && npm ci --omit=dev && pm2 restart bookvault
 ```
 Keep server-only edits in `.env`, never in `package.json`, so `git pull` doesn't conflict.
 

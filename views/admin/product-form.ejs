@@ -4,7 +4,7 @@
 
 <% if (author) { %>
 <div class="card" style="max-width:860px;margin-bottom:1.25rem">
-  <div class="spread"><h2 style="margin:0">Submitted by <a href="/admin/authors/<%= author.id %>"><%= author.pen_name %></a></h2><span class="badge <%= p.status %>"><%= p.status === 'pending' ? 'awaiting review' : p.status %></span></div>
+  <div class="spread"><h2 style="margin:0"><%= cr ? 'Submitted by' : 'Assigned to' %> <a href="/admin/authors/<%= author.id %>"><%= author.pen_name %></a></h2><span class="badge <%= p.status %>"><%= p.status === 'pending' ? 'awaiting review' : p.status %></span></div>
   <p class="small muted">Legal name: <%= author.legal_name %> · <%= author.email %> · <%= author.phone %> · Author status: <span class="badge <%= author.status %>"><%= author.status %></span><%= p.submitted_at ? ' · Submitted ' + p.submitted_at : '' %></p>
   <% if (cr) { %>
   <h3 style="margin-top:1rem">Copyright declaration</h3>
@@ -44,11 +44,26 @@
   </fieldset>
   <fieldset>
     <legend>Details</legend>
-    <div class="field"><label>Title</label><input type="text" name="title" value="<%= p.title || '' %>" required></div>
     <div class="grid2">
-      <div class="field"><label><span data-book>Author / Lecturer</span><span data-software hidden>Developer / publisher</span> <span class="hint">(optional)</span></label><input type="text" name="author" value="<%= p.author || '' %>" <%= author ? 'disabled' : '' %>></div>
+      <div class="field"><label>Title</label><input type="text" name="title" value="<%= p.title || '' %>" required></div>
       <div class="field"><label>Price (₦)</label><input type="text" inputmode="decimal" name="price" value="<%= p.price_kobo != null ? (p.price_kobo / 100) : '' %>" placeholder="e.g. 2500 — use 0 for free" required></div>
     </div>
+    <div class="grid2">
+      <div class="field">
+        <label><span data-book>Author</span><span data-software hidden>Developer</span> <span class="hint">— verified authors earn royalties</span></label>
+        <select name="author_id" data-author-select data-sales="<%= sales.n %>" data-gross="<%= sales.gross %>" data-default-pct="<%= defaultPct %>" data-current="<%= p.author_id || '' %>">
+          <option value="">— None (store's own product) —</option>
+          <% verifiedAuthors.forEach(function(a){ %><option value="<%= a.id %>" data-pct="<%= a.commission_pct != null ? a.commission_pct : '' %>" <%= p.author_id === a.id ? 'selected' : '' %>><%= a.pen_name %><%= a.institution ? ' — ' + a.institution : '' %></option><% }) %>
+        </select>
+        <% if (!verifiedAuthors.length) { %><div class="hint" style="margin-top:.3rem">No verified authors yet. <a href="/admin/authors">Verify authors</a> to assign books to them.</div><% } %>
+      </div>
+      <div class="field" data-author-name>
+        <label>…or type a name <span class="hint">(display only, no royalties)</span></label>
+        <input type="text" name="author" value="<%= p.author_id ? '' : (p.author || '') %>" placeholder="e.g. R. C. Hibbeler">
+      </div>
+    </div>
+    <div class="warnbar" data-author-note hidden></div>
+
     <div class="grid2" data-software hidden>
       <div class="field"><label>Platform</label><select name="platform"><% platforms.forEach(function(pl){ %><option <%= p.platform === pl ? 'selected' : '' %>><%= pl %></option><% }) %></select></div>
       <div class="field"><label>Version</label><input type="text" name="version" value="<%= p.version || '' %>" placeholder="e.g. 2.1"></div>
