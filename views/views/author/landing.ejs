@@ -1,0 +1,49 @@
+<%- include('../partials/head') %>
+<section class="hero"><div class="wrap">
+  <h1>Publish your books. Earn on every sale.</h1>
+  <p>Join <%= settings.store_name %> as a verified author. Sell e-books, printed books and software — we handle payments, delivery and copy protection, and pay your royalties to your bank account.</p>
+</div></section>
+<main class="wrap page">
+  <%- include('../partials/flash') %>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:0">
+    <div class="card"><h3>🔒 Protected copies</h3><p class="small muted" style="margin:0">Every copy sold carries the buyer's name on every page and a unique password, discouraging piracy.</p></div>
+    <div class="card"><h3>💰 <%= 100 - commission %>% royalties</h3><p class="small muted" style="margin:0">You keep <%= 100 - commission %>% of each sale. Request payout once you reach <%= naira(minPayout) %>, or let it pay out automatically.</p></div>
+    <div class="card"><h3>📈 Live sales dashboard</h3><p class="small muted" style="margin:0">See every sale, your earnings per title, ratings and reviews from readers.</p></div>
+    <div class="card"><h3>📦 Printed books too</h3><p class="small muted" style="margin:0">List your printed copies with stock and weight. Buyers anywhere in Nigeria pay delivery at checkout; you ship and keep the delivery fee.</p></div>
+    <div class="card"><h3>✅ Simple approval</h3><p class="small muted" style="margin:0">Get verified once, then submit titles with a short copyright declaration. We review and publish.</p></div>
+  </div>
+
+  <div class="mid" id="apply" style="margin-top:2rem">
+  <% if (!user) { %>
+    <div class="card" style="text-align:center"><h2>Start your application</h2><p class="muted">Create a free account (or log in), then complete the short author application.</p>
+      <div class="row" style="justify-content:center"><a class="btn accent" href="/register?next=/author">Create account</a><a class="btn ghost" href="/login?next=/author">Log in</a></div></div>
+  <% } else if (author && author.status === 'pending') { %>
+    <div class="card"><h2>Application under review ⏳</h2><p>Thanks, <%= author.pen_name %>. We're verifying your details. You'll be able to submit titles as soon as your account is verified.</p><p class="small muted" style="margin:0">Submitted <%= author.created_at.slice(0,10) %>.</p></div>
+  <% } else if (author && author.status === 'suspended') { %>
+    <div class="card"><h2>Author account suspended</h2><p><%= author.review_note || 'Please contact the store for details.' %></p></div>
+  <% } else { %>
+    <% if (author && author.status === 'rejected') { %><div class="flash error"><strong>Your application was not approved.</strong> <%= author.review_note || '' %> You can update your details and apply again.</div><% } %>
+    <form class="card" method="post" action="/author/apply?_csrf=<%= csrf %>" enctype="multipart/form-data" data-once>
+      <h2>Author application</h2>
+      <div class="grid2">
+        <div class="field"><label>Pen name <span class="hint">(shown to readers)</span></label><input type="text" name="pen_name" required value="<%= author ? author.pen_name : user.full_name %>"></div>
+        <div class="field"><label>Full legal name <span class="hint">(as on your ID)</span></label><input type="text" name="legal_name" required value="<%= author ? author.legal_name : user.full_name %>"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Phone</label><input type="tel" name="phone" required value="<%= author ? author.phone : (user.phone || '') %>"></div>
+        <div class="field"><label>Institution / organisation <span class="hint">(optional)</span></label><input type="text" name="institution" value="<%= author ? author.institution || '' : '' %>" placeholder="e.g. Federal Polytechnic Nekede"></div>
+      </div>
+      <div class="field"><label>Address</label><input type="text" name="address" value="<%= author ? author.address || '' : '' %>"></div>
+      <div class="field"><label>Short bio</label><textarea name="bio" required placeholder="Your background, subjects you teach or write about…"><%= author ? author.bio || '' : '' %></textarea></div>
+      <div class="grid2">
+        <div class="field"><label>ID type</label><select name="id_type"><% ['NIN slip / National ID','Voter\'s card','International passport','Driver\'s licence','Staff ID card'].forEach(function(t){ %><option <%= author && author.id_type === t ? 'selected' : '' %>><%= t %></option><% }) %></select></div>
+        <div class="field"><label>Upload ID <span class="hint">(photo or PDF)<%= author && author.id_file ? ' — already uploaded' : '' %></span></label><input type="file" name="id_file" accept="image/*,.pdf" <%= author && author.id_file ? '' : 'required' %>></div>
+      </div>
+      <div class="field"><label>Profile photo <span class="hint">(optional)</span></label><input type="file" name="photo" accept="image/*"></div>
+      <label class="check"><input type="checkbox" name="agree" value="1" required><span>I confirm these details are true. I agree that <%= settings.store_name %> keeps a <%= commission %>% commission on each sale (subject to change with notice), and that I will only upload works I own or have the right to sell.</span></label>
+      <button class="btn accent" style="margin-top:1rem">Submit application</button>
+    </form>
+  <% } %>
+  </div>
+</main>
+<%- include('../partials/foot') %>

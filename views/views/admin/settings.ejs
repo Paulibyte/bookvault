@@ -1,0 +1,101 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0">Settings</h1></div>
+<form method="post" action="/admin/settings?_csrf=<%= csrf %>" enctype="multipart/form-data" style="max-width:860px">
+  <fieldset>
+    <legend>Store</legend>
+    <div class="grid2">
+      <div class="field"><label>Store name</label><input type="text" name="store_name" value="<%= settings.store_name %>"></div>
+      <div class="field"><label>Tagline</label><input type="text" name="store_tagline" value="<%= settings.store_tagline %>"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>WhatsApp number <span class="hint">(e.g. 2348012345678)</span></label><input type="text" name="support_whatsapp" value="<%= settings.support_whatsapp %>"></div>
+      <div class="field"><label>Phone</label><input type="text" name="support_phone" value="<%= settings.support_phone %>"></div>
+    </div>
+    <div class="field"><label>Support email</label><input type="email" name="support_email" value="<%= settings.support_email %>"></div>
+    <div class="field"><label>Extra note on “How it works” page <span class="hint">(optional)</span></label><textarea name="about_text" style="min-height:70px"><%= settings.about_text %></textarea></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Payments</legend>
+    <label class="check"><input type="checkbox" name="bank_enabled" value="1" <%= settings.bank_enabled === '1' ? 'checked' : '' %>><span>Accept direct bank deposit / transfer</span></label>
+    <div class="grid2" style="margin-top:.8rem">
+      <div class="field"><label>Bank name</label><input type="text" name="bank_name" value="<%= settings.bank_name %>" placeholder="e.g. OPay / GTBank"></div>
+      <div class="field"><label>Account number</label><input type="text" name="bank_account_number" value="<%= settings.bank_account_number %>"></div>
+    </div>
+    <div class="field"><label>Account name</label><input type="text" name="bank_account_name" value="<%= settings.bank_account_name %>"></div>
+    <div class="field"><label>Instructions shown to buyer</label><textarea name="bank_instructions" style="min-height:70px"><%= settings.bank_instructions %></textarea></div>
+    <label class="check"><input type="checkbox" name="opay_enabled" value="1" <%= settings.opay_enabled === '1' ? 'checked' : '' %>><span>Accept online payment with OPay Checkout<br>
+      <span class="hint"><% if (opayReady) { %>✓ Keys found in .env — mode: <strong><%= opayMode %></strong><% } else { %>⚠ Add OPAY_MERCHANT_ID, OPAY_PUBLIC_KEY and OPAY_SECRET_KEY to the .env file, then restart the app.<% } %></span></span></label>
+  </fieldset>
+
+  <fieldset id="shipping">
+    <legend>Printed books &amp; delivery across Nigeria</legend>
+    <label class="check"><input type="checkbox" name="shipping_enabled" value="1" <%= settings.shipping_enabled === '1' ? 'checked' : '' %>><span>Sell and deliver printed books</span></label>
+    <div class="grid2" style="margin-top:.8rem">
+      <div class="field"><label>Store ships from (state)</label><select name="store_ship_state"><% states.forEach(function(s){ %><option value="<%= s %>" <%= settings.store_ship_state === s ? 'selected' : '' %>><%= stateLabel(s) %></option><% }) %></select></div>
+      <div class="field"><label>Town / city</label><input type="text" name="store_ship_city" value="<%= settings.store_ship_city %>"></div>
+    </div>
+    <div class="field"><label>Store pickup address <span class="hint">(for "Collect from seller" on store books)</span></label><input type="text" name="store_pickup_address" value="<%= settings.store_pickup_address %>"></div>
+    <p class="small muted">Prices per parcel in ₦. <strong>Same state</strong> = seller and buyer in the same state; <strong>same zone</strong> = same geopolitical zone (e.g. Imo → Enugu); <strong>nationwide</strong> = everywhere else. "Each extra kg" is added for every kg above the first. Leave a box empty to not offer that option for that zone.</p>
+    <div class="table-wrap"><table class="rate-table">
+      <thead><tr><th>Option</th><th>Name shown to buyers</th><th>Same state</th><th>Same zone</th><th>Nationwide</th><th>Each extra kg</th></tr></thead>
+      <tbody>
+      <% ['doorstep','park','pickup'].forEach(function(m){ const r = rates[m] || {}; const v = function(x){ return x == null || x === '' ? '' : Number(x) / 100; }; %>
+        <tr>
+          <td><label class="check" style="margin:0"><input type="checkbox" name="rate_<%= m %>_on" value="1" <%= r.on ? 'checked' : '' %>><span><%= { doorstep: 'Doorstep', park: 'Bus park', pickup: 'Pickup' }[m] %></span></label></td>
+          <td><input type="text" name="rate_<%= m %>_label" value="<%= r.label || '' %>"></td>
+          <% ['same_state','same_region','nationwide'].forEach(function(z){ %><td><input type="text" inputmode="decimal" name="rate_<%= m %>_<%= z %>" value="<%= v(r[z]) %>" <%= m === 'pickup' && z !== 'same_state' ? 'disabled title="Pickup is only offered within the same state"' : '' %>></td><% }) %>
+          <td><input type="text" inputmode="decimal" name="rate_<%= m %>_per_kg" value="<%= v(r.per_kg) %>"></td>
+        </tr>
+        <tr><td class="small muted" style="text-align:right">Delivery time</td><td></td>
+          <% ['same_state','same_region','nationwide'].forEach(function(z){ %><td><input type="text" name="eta_<%= m %>_<%= z %>" value="<%= (r.eta || {})[z] || '' %>" placeholder="e.g. 2–4 days" <%= m === 'pickup' && z !== 'same_state' ? 'disabled' : '' %>></td><% }) %><td></td></tr>
+      <% }) %>
+      </tbody></table></div>
+    <div class="field" style="max-width:360px;margin-top:1rem"><label>Hold author royalties on printed books for (days)</label><input type="number" min="0" max="90" name="royalty_hold_days" value="<%= settings.royalty_hold_days %>"><div class="hint" style="margin-top:.3rem">Royalties for a shipped printed book become withdrawable when the buyer confirms delivery, or after this many days.</div></div>
+  </fieldset>
+
+  <fieldset id="authors">
+    <legend>Authors, royalties &amp; reviews</legend>
+    <label class="check"><input type="checkbox" name="authors_enabled" value="1" <%= settings.authors_enabled === '1' ? 'checked' : '' %>><span>Allow authors to apply and submit titles <span class="hint">(page: /author)</span></span></label>
+    <div class="grid2" style="margin-top:.8rem">
+      <div class="field"><label>Store commission on author sales (%) <span class="hint">— author keeps the rest</span></label><input type="number" name="default_commission_pct" min="0" max="100" step="0.5" value="<%= settings.default_commission_pct %>"></div>
+      <div class="field"><label>Minimum royalty payout (₦)</label><input type="text" inputmode="decimal" name="payout_min" value="<%= Number(settings.payout_min_kobo) / 100 %>"></div>
+    </div>
+    <p class="small muted">You can override the commission for individual authors on their page. Changes apply to future sales only.</p>
+    <label class="check"><input type="checkbox" name="reviews_enabled" value="1" <%= settings.reviews_enabled === '1' ? 'checked' : '' %>><span>Let buyers rate and review what they bought</span></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Watermark &amp; protection</legend>
+    <p class="small muted">Placeholders: <code>{name}</code> <code>{email}</code> <code>{phone}</code> <code>{order}</code> <code>{date}</code> <code>{store}</code>. Page numbers are added to the footer automatically. Changing anything here regenerates copies on the next download.</p>
+    <div class="field"><label>Header text (top of every page)</label><input type="text" name="watermark_header" value="<%= settings.watermark_header %>"></div>
+    <div class="field"><label>Footer text (bottom of every page)</label><input type="text" name="watermark_footer" value="<%= settings.watermark_footer %>"></div>
+    <div class="grid2">
+      <div class="field">
+        <label>Watermark logo <span class="hint">(transparent PNG works best)</span></label>
+        <% if (settings.watermark_logo) { %><div class="row" style="margin-bottom:.5rem"><img src="/brand/<%= settings.watermark_logo %>" alt="" style="width:90px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px"><label class="check" style="font-weight:400"><input type="checkbox" name="remove_logo" value="1">Remove</label></div><% } %>
+        <input type="file" name="watermark_logo" accept="image/png,image/jpeg,image/webp">
+      </div>
+      <div>
+        <div class="field"><label>Logo opacity <span class="hint">(0.05 faint – 0.40 strong)</span></label><input type="number" step="0.01" min="0.03" max="0.6" name="watermark_opacity" value="<%= settings.watermark_opacity %>"></div>
+        <div class="field"><label>Logo width <span class="hint">(% of page width)</span></label><input type="number" min="10" max="90" name="watermark_logo_size" value="<%= settings.watermark_logo_size %>"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Downloads allowed per purchase <span class="hint">(0 = unlimited)</span></label><input type="number" min="0" name="download_limit" value="<%= settings.download_limit %>"></div>
+      <div class="field" style="padding-top:1.7rem"><label class="check"><input type="checkbox" name="allow_print" value="1" <%= settings.allow_print !== '0' ? 'checked' : '' %>><span>Allow printing of PDFs</span></label></div>
+    </div>
+    <p class="small muted" style="margin-bottom:1rem">Tip: after saving, use <strong>Test copy</strong> on the Products page to see exactly what a buyer receives.</p>
+  </fieldset>
+  <button class="btn accent">Save settings</button>
+</form>
+
+<div class="card" id="categories" style="max-width:860px;margin-top:2rem">
+  <h2>Categories</h2>
+  <p class="small muted">Create categories while adding a product. Remove unused ones here.</p>
+  <% if (!categories.length) { %><p class="muted">None yet.</p><% } %>
+  <div class="chips"><% categories.forEach(function(c){ %>
+    <form method="post" action="/admin/categories/<%= c.id %>/delete" class="inline" data-confirm="Delete category “<%= c.name %>”? Products stay, uncategorised."><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="chip" style="cursor:pointer"><%= c.name %> (<%= c.n %>) ✕</button></form>
+  <% }) %></div>
+</div>
+<%- include('_bottom') %>

@@ -19,6 +19,7 @@ router.use((req, res, next) => {
   res.locals.reviewCount = db.prepare("SELECT COUNT(*) c FROM products WHERE status = 'pending'").get().c;
   res.locals.authorCount = db.prepare("SELECT COUNT(*) c FROM authors WHERE status = 'pending'").get().c;
   res.locals.payoutCount = db.prepare("SELECT COUNT(*) c FROM payouts WHERE status = 'requested'").get().c;
+  res.locals.shipCount = db.prepare("SELECT COUNT(*) c FROM shipments sh JOIN orders o ON o.id = sh.order_id WHERE o.status = 'paid' AND sh.status = 'processing' AND sh.author_id IS NULL").get().c;
   next();
 });
 
@@ -54,6 +55,7 @@ router.get('/', (req, res) => {
   if (s.opay_enabled === '1' && !opay.configured()) warnings.push('OPay is switched on but keys are missing from the .env file.');
   if (res.locals.reviewCount) warnings.push(`${res.locals.reviewCount} author title(s) waiting for your approval.`);
   if (res.locals.authorCount) warnings.push(`${res.locals.authorCount} author application(s) waiting for verification.`);
+  if (res.locals.shipCount) warnings.push(`${res.locals.shipCount} printed-book shipment(s) for the store to send.`);
   if (res.locals.payoutCount) warnings.push(`${res.locals.payoutCount} royalty payout request(s) to pay.`);
   if (!s.watermark_logo) warnings.push('Upload a watermark logo in Settings (header/footer text is already active).');
   res.render('admin/dashboard', { title: 'Dashboard', stats, top, awaiting, recent, days, warnings });
@@ -71,12 +73,21 @@ router.get('/products', (req, res) => {
   res.render('admin/products', { title: 'Products', products, filter });
 });
 
+const shipping = require('../shipping');
+function savePrintFields(id, b) {
+  const stock = parseInt(b.stock, 10), weight = parseFloat(b.weight_kg);
+  db.prepare(`UPDATE products SET format = 'print', file_type = 'print', protect = 0, stock = ?, weight_kg = ?, ship_from_state = ?, ship_from_city = ?,
+    book_condition = ?, pages = COALESCE(?, pages) WHERE id = ?`).run(stock >= 0 ? stock : 0, weight > 0 ? weight : 0.5,
+    shipping.STATES.includes(b.ship_from_state) ? b.ship_from_state : null, (b.ship_from_city || '').trim() || null,
+    (b.book_condition || 'New').trim(), parseInt(b.pages, 10) || null, id);
+}
+
 function productFormData(p) {
   const author = p.author_id ? db.prepare('SELECT a.*, u.email FROM authors a JOIN users u ON u.id = a.user_id WHERE a.id = ?').get(p.author_id) : null;
   const verifiedAuthors = db.prepare(`SELECT a.id, a.pen_name, a.legal_name, a.institution, a.commission_pct FROM authors a
     WHERE a.status = 'verified' OR a.id = ? ORDER BY a.pen_name COLLATE NOCASE`).all(p.author_id || 0);
   const sales = p.id ? require('../orders').productSales(p.id) : { n: 0, gross: 0, royalties: 0 };
-  return { p, author, verifiedAuthors, sales, defaultPct: Number(getSettings().default_commission_pct),
+  return { states: shipping.STATES, stateLabel: shipping.stateLabel, p, author, verifiedAuthors, sales, defaultPct: Number(getSettings().default_commission_pct),
     cr: p.copyright_json ? JSON.parse(p.copyright_json) : null, categories: db.prepare('SELECT * FROM categories ORDER BY name').all(),
     maxMb: MAX_MB, platforms: PLATFORMS, canConvert: require('../watermark/convert').available() };
 }
@@ -90,9 +101,10 @@ router.post('/products/new', productFields, async (req, res, next) => {
     const file = req.files && req.files.file && req.files.file[0];
     const title = (req.body.title || '').trim();
     const kind = req.body.kind === 'software' ? 'software' : 'book';
-    if (!title || !file) { cleanupFiles(req); flash(req, 'error', 'Title and file are required.'); return res.redirect('/admin/products/new'); }
+    const isPrint = req.body.kind === 'print';
+    if (!title || (!file && !isPrint)) { cleanupFiles(req); flash(req, 'error', 'Title and file are required.'); return res.redirect('/admin/products/new'); }
     let meta;
-    try { meta = await saveProductFile(file, kind); }
+    try { meta = isPrint ? { stored: '', original: '', type: 'print', size: 0, pages: null, readerPdf: null } : await saveProductFile(file, kind); }
     catch (e) { cleanupFiles(req); flash(req, 'error', e.message); return res.redirect('/admin/products/new'); }
     const cover = await saveCover(req.files.cover && req.files.cover[0]);
     db.prepare(`INSERT INTO products (title, slug, author, category_id, description, price_kobo, cover_file, stored_file, original_name, file_type, file_size, pages,
@@ -103,6 +115,7 @@ router.post('/products/new', productFields, async (req, res, next) => {
       kind === 'software' ? 0 : (req.body.protect ? 1 : 0), req.body.is_active ? 1 : 0, kind,
       kind === 'software' ? (req.body.platform || '').trim() : null, kind === 'software' ? (req.body.version || '').trim() : null, meta.readerPdf);
     const newId = db.prepare('SELECT last_insert_rowid() id').get().id;
+    if (isPrint) { if (file) cleanupFiles({ files: { file: [file] } }); savePrintFields(newId, req.body); }
     if (Number(req.body.author_id)) {
       try { require('../orders').reassignProduct(newId, Number(req.body.author_id)); }
       catch (e) { flash(req, 'error', e.message); }
@@ -126,8 +139,10 @@ router.post('/products/:id', productFields, async (req, res, next) => {
   try {
     const p = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id));
     if (!p) { cleanupFiles(req); return res.redirect('/admin/products'); }
-    const file = req.files && req.files.file && req.files.file[0];
-    const kind = req.body.kind === 'software' ? 'software' : (req.body.kind === 'book' ? 'book' : p.kind);
+    let file = req.files && req.files.file && req.files.file[0];
+    if (file && p.format === 'print') { cleanupFiles({ files: { file: [file] } }); file = null; }
+    if (p.format === 'print') savePrintFields(p.id, req.body);
+    const kind = req.body.kind === 'software' ? 'software' : (['book', 'print'].includes(req.body.kind) ? 'book' : p.kind);
     let meta = null;
     if (file) {
       try { meta = await saveProductFile(file, kind); }
@@ -137,7 +152,7 @@ router.post('/products/:id', productFields, async (req, res, next) => {
     const cover = coverFile ? (await saveCover(coverFile)) || p.cover_file : p.cover_file;
     if (coverFile && p.cover_file && cover !== p.cover_file) fs.promises.unlink(path.join(DIRS.covers, p.cover_file)).catch(() => {});
     const title = (req.body.title || p.title).trim();
-    const protect = kind === 'software' ? 0 : (req.body.protect ? 1 : 0);
+    const protect = (kind === 'software' || p.format === 'print') ? 0 : (req.body.protect ? 1 : 0);
     db.prepare(`UPDATE products SET title=?, slug=?, author=?, category_id=?, description=?, price_kobo=?, cover_file=?,
       stored_file=?, original_name=?, file_type=?, file_size=?, pages=?, reader_pdf=?, protect=?, is_active=?, kind=?, platform=?, version=?,
       updated_at=datetime('now') WHERE id=?`).run(
@@ -346,7 +361,7 @@ router.post('/users/:id', (req, res) => {
 // ---------- Settings ----------
 const brandUpload = upload.single('watermark_logo');
 router.get('/settings', (req, res) => {
-  res.render('admin/settings', { title: 'Settings', opayReady: opay.configured(), opayMode: process.env.OPAY_MODE === 'live' ? 'live' : 'sandbox',
+  res.render('admin/settings', { title: 'Settings', rates: shipping.rates(), states: shipping.STATES, stateLabel: shipping.stateLabel, opayReady: opay.configured(), opayMode: process.env.OPAY_MODE === 'live' ? 'live' : 'sandbox',
     categories: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM products WHERE category_id = c.id) n FROM categories c ORDER BY name').all() });
 });
 
@@ -355,10 +370,28 @@ router.post('/settings', brandUpload, async (req, res, next) => {
     const before = getSettings();
     const keys = ['store_name', 'store_tagline', 'support_phone', 'support_whatsapp', 'support_email', 'bank_name', 'bank_account_name',
       'bank_account_number', 'bank_instructions', 'watermark_header', 'watermark_footer', 'watermark_opacity', 'watermark_logo_size',
-      'download_limit', 'about_text', 'default_commission_pct'];
+      'download_limit', 'about_text', 'default_commission_pct', 'store_ship_city', 'store_pickup_address', 'royalty_hold_days'];
     for (const k of keys) if (k in req.body) setSetting(k, (req.body[k] || '').trim());
     if ('payout_min' in req.body) setSetting('payout_min_kobo', nairaToKobo(req.body.payout_min));
-    for (const k of ['opay_enabled', 'bank_enabled', 'allow_print', 'authors_enabled', 'reviews_enabled']) setSetting(k, req.body[k] ? '1' : '0');
+    if ('rate_doorstep_same_state' in req.body) {
+      const cur = shipping.rates();
+      const num = v => (String(v || '').trim() === '' ? null : nairaToKobo(v));
+      for (const m of ['doorstep', 'park', 'pickup']) {
+        const r = cur[m] || { eta: {} };
+        r.on = !!req.body[`rate_${m}_on`];
+        r.label = (req.body[`rate_${m}_label`] || r.label || m).trim();
+        for (const z of ['same_state', 'same_region', 'nationwide']) {
+          if (`rate_${m}_${z}` in req.body) r[z] = num(req.body[`rate_${m}_${z}`]);
+          r.eta = r.eta || {};
+          if (`eta_${m}_${z}` in req.body) r.eta[z] = (req.body[`eta_${m}_${z}`] || '').trim();
+        }
+        if (`rate_${m}_per_kg` in req.body) r.per_kg = num(req.body[`rate_${m}_per_kg`]) || 0;
+        cur[m] = r;
+      }
+      setSetting('shipping_rates', JSON.stringify(cur));
+      if (shipping.STATES.includes(req.body.store_ship_state)) setSetting('store_ship_state', req.body.store_ship_state);
+    }
+    for (const k of ['opay_enabled', 'bank_enabled', 'allow_print', 'authors_enabled', 'reviews_enabled', 'shipping_enabled']) setSetting(k, req.body[k] ? '1' : '0');
     if (req.file) {
       if (!/\.(png|jpe?g|webp)$/i.test(req.file.originalname)) {
         fs.promises.unlink(req.file.path).catch(() => {});
@@ -454,6 +487,27 @@ router.post('/payouts/:id/reject', (req, res) => {
   db.prepare("UPDATE payouts SET status = 'rejected', admin_note = ? WHERE id = ? AND status = 'requested'").run(note, Number(req.params.id));
   flash(req, 'info', 'Payout rejected — the amount returns to the author\'s balance.');
   res.redirect(req.body.back || '/admin/payouts');
+});
+
+// ---------- Shipments (printed books) ----------
+router.get('/shipments', (req, res) => {
+  const status = ['processing', 'shipped', 'delivered', 'cancelled'].includes(req.query.status) ? req.query.status : (req.query.status === 'all' ? '' : 'processing');
+  const who = req.query.who === 'store' ? 'sh.author_id IS NULL' : req.query.who === 'authors' ? 'sh.author_id IS NOT NULL' : '1=1';
+  const rows = db.prepare(`SELECT sh.*, o.reference, o.id AS order_id, o.paid_at, o.ship_name, o.ship_phone, o.ship_address, o.ship_city, o.ship_state, o.ship_landmark, a.pen_name
+    FROM shipments sh JOIN orders o ON o.id = sh.order_id LEFT JOIN authors a ON a.id = sh.author_id
+    WHERE o.status = 'paid' AND ${who} ${status ? 'AND sh.status = ?' : ''}
+    ORDER BY CASE sh.status WHEN 'processing' THEN 0 WHEN 'shipped' THEN 1 ELSE 2 END, sh.id DESC LIMIT 300`).all(...(status ? [status] : []));
+  const items = db.prepare('SELECT p.title FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.shipment_id = ?');
+  rows.forEach(r => { r.items = items.all(r.id).map(i => i.title); });
+  res.render('admin/shipments', { title: 'Shipments', rows, status: req.query.status || 'processing', who: req.query.who || '', stateLabel: shipping.stateLabel });
+});
+
+router.post('/shipments/:id', (req, res) => {
+  try {
+    require('../orders').updateShipment(Number(req.params.id), { status: req.body.status, courier: (req.body.courier || '').trim(), tracking: (req.body.tracking || '').trim(), note: (req.body.note || '').trim() });
+    flash(req, 'success', req.body.status === 'cancelled' ? 'Shipment cancelled and stock returned. Refund the buyer\'s item and delivery fee manually.' : 'Shipment updated.');
+  } catch (e) { flash(req, 'error', e.message); }
+  res.redirect(req.body.back || '/admin/shipments');
 });
 
 // ---------- Reviews ----------

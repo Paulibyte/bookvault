@@ -2,10 +2,12 @@
 <div class="kpis">
   <div class="card kpi hl"><div class="k">Available royalties</div><div class="v"><%= naira(bal.available) %></div></div>
   <div class="card kpi"><div class="k">Total earned</div><div class="v"><%= naira(bal.earned) %></div></div>
+  <% if (bal.pending) { %><a class="card kpi warn" href="/author/shipments" style="text-decoration:none;color:inherit"><div class="k">Awaiting delivery</div><div class="v"><%= naira(bal.pending) %></div></a><% } %>
   <div class="card kpi"><div class="k">Copies sold</div><div class="v"><%= totals.n %></div></div>
   <div class="card kpi"><div class="k">Gross sales</div><div class="v"><%= naira(totals.gross) %></div></div>
   <div class="card kpi"><div class="k">Paid out</div><div class="v"><%= naira(bal.paid) %></div></div>
 </div>
+<% if (toShip) { %><div class="warnbar">📦 You have <strong><%= toShip %></strong> printed-book order<%= toShip === 1 ? '' : 's' %> to ship. <a href="/author/shipments">Open orders to ship</a></div><% } %>
 <% if (bal.available >= minPayout && !bal.requested) { %><div class="warnbar">🎉 You've reached the <%= naira(minPayout) %> payout threshold. <a href="/author/payouts">Request your royalties</a>.</div><% } %>
 <div class="two">
   <div class="card">

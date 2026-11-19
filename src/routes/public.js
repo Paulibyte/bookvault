@@ -22,7 +22,7 @@ const SORTS = {
   price_high: 'p.price_kobo DESC',
 };
 
-const PRODUCT_COLS = `p.*, c.name AS category, a.pen_name AS author_name, a.id AS author_ref`;
+const PRODUCT_COLS = `p.*, c.name AS category, a.pen_name AS author_name, a.id AS author_ref, a.ship_state AS author_ship_state, a.ship_city AS author_ship_city`;
 const PRODUCT_JOIN = `FROM products p LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN authors a ON a.id = p.author_id AND a.status = 'verified'`;
 
@@ -30,13 +30,14 @@ router.get('/', (req, res) => {
   const q = (req.query.q || '').trim();
   const cat = Number(req.query.cat) || null;
   const kind = req.query.kind === 'software' ? 'software' : 'book';
-  const type = ['pdf', 'docx', 'zip'].includes(req.query.type) ? req.query.type : null;
+  const type = ['pdf', 'docx', 'zip', 'print'].includes(req.query.type) ? req.query.type : null;
   const sort = SORTS[req.query.sort] ? req.query.sort : 'popular';
   const where = [LIVE, 'p.kind = ?'];
   const params = [kind];
   if (q) { where.push('(p.title LIKE ? OR p.author LIKE ? OR p.description LIKE ? OR a.pen_name LIKE ?)'); params.push(...Array(4).fill(`%${q}%`)); }
   if (cat) { where.push('p.category_id = ?'); params.push(cat); }
-  if (type) { where.push('p.file_type = ?'); params.push(type); }
+  if (type === 'print') where.push("p.format = 'print'");
+  else if (type) { where.push('p.file_type = ?'); params.push(type); }
   const products = db.prepare(`SELECT ${PRODUCT_COLS} ${PRODUCT_JOIN} WHERE ${where.join(' AND ')} ORDER BY ${SORTS[sort]}`).all(...params);
   const categories = db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id AND ${LIVE} AND p.kind = ?) n
     FROM categories c ORDER BY c.name`).all(kind).filter(c => c.n > 0);
@@ -46,7 +47,7 @@ router.get('/', (req, res) => {
     db.prepare(`SELECT p.id FROM products p WHERE ${LIVE} AND p.kind = ? AND p.sales_count > 0 ORDER BY ${SCORE} DESC LIMIT 3`)
       .all(kind).forEach((r, i) => ranks.set(r.id, i + 1));
   }
-  const owned = req.user ? ownedProductIds(req.user.id) : new Set();
+  const owned = req.user ? ownedProductIds(req.user.id, { includePrint: false }) : new Set();
   const cart = new Set(req.session.cart || []);
   res.render('home', { title: kind === 'software' ? 'Apps & Software' : null, products, categories, q, cat, type, sort, kind, kindTab: kind === 'software' ? 'software' : null, owned, cart, ranks });
 });
@@ -54,7 +55,8 @@ router.get('/', (req, res) => {
 router.get('/book/:slug', (req, res) => {
   const p = db.prepare(`SELECT ${PRODUCT_COLS} ${PRODUCT_JOIN} WHERE p.slug = ? AND ${LIVE}`).get(req.params.slug);
   if (!p) return res.status(404).render('error', { title: 'Not found', message: 'This item is not available.' });
-  const owned = req.user ? ownedProductIds(req.user.id).has(p.id) : false;
+  const ownedAny = req.user ? ownedProductIds(req.user.id).has(p.id) : false;
+  const owned = ownedAny && p.format !== 'print';
   const inCart = (req.session.cart || []).includes(p.id);
   const related = db.prepare(`SELECT ${PRODUCT_COLS} ${PRODUCT_JOIN} WHERE ${LIVE} AND p.id != ? AND p.kind = ?
     AND (p.category_id IS ? OR p.author_id IS ?) ORDER BY ${SCORE} DESC LIMIT 4`).all(p.id, p.kind, p.category_id, p.author_id);
@@ -62,7 +64,18 @@ router.get('/book/:slug', (req, res) => {
     WHERE r.product_id = ? AND r.is_hidden = 0 ORDER BY r.updated_at DESC LIMIT 50`).all(p.id);
   const myReview = req.user ? db.prepare('SELECT * FROM reviews WHERE product_id = ? AND user_id = ?').get(p.id, req.user.id) : null;
   const dist = [5, 4, 3, 2, 1].map(n => ({ n, c: reviews.filter(r => r.rating === n).length }));
-  res.render('product', { title: p.title, p, owned, inCart, related, reviews, myReview, dist, kindTab: p.kind === 'software' ? 'software' : null });
+  const shipping = require('../shipping');
+  let delivery = null;
+  if (p.format === 'print') {
+    const from = p.ship_from_state || p.author_ship_state || res.locals.settings.store_ship_state;
+    const r = shipping.rates();
+    const w = p.weight_kg || 0.5;
+    delivery = { from, city: p.ship_from_city || p.author_ship_city || (p.author_id ? '' : res.locals.settings.store_ship_city),
+      rows: ['same_state', 'same_region', 'nationwide'].map(z => ({ zone: shipping.ZONE_LABEL[z],
+        doorstep: shipping.parcelFee('doorstep', z, w), park: shipping.parcelFee('park', z, w), eta: shipping.eta('doorstep', z) })),
+      labels: { doorstep: r.doorstep && r.doorstep.label, park: r.park && r.park.label }, stateLabel: shipping.stateLabel };
+  }
+  res.render('product', { title: p.title, p, owned, canReview: ownedAny, delivery, inCart, related, reviews, myReview, dist, kindTab: p.kind === 'software' ? 'software' : null });
 });
 
 router.post('/book/:slug/review', requireLogin, (req, res) => {
@@ -87,7 +100,7 @@ router.get('/authors/:id', (req, res) => {
   const a = db.prepare("SELECT * FROM authors WHERE id = ? AND status = 'verified'").get(Number(req.params.id));
   if (!a) return res.status(404).render('error', { title: 'Not found', message: 'Author not found.' });
   const products = db.prepare(`SELECT ${PRODUCT_COLS} ${PRODUCT_JOIN} WHERE ${LIVE} AND p.author_id = ? ORDER BY ${SCORE} DESC`).all(a.id);
-  const owned = req.user ? ownedProductIds(req.user.id) : new Set();
+  const owned = req.user ? ownedProductIds(req.user.id, { includePrint: false }) : new Set();
   res.render('author-public', { title: a.pen_name, a, products, owned, cart: new Set(req.session.cart || []), ranks: new Map() });
 });
 

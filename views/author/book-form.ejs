@@ -1,16 +1,34 @@
 <%- include('_top') %>
-<% const isNew = !p.id; const sw = p.kind === 'software'; %>
+<% const isNew = !p.id; const sw = p.kind === 'software'; const isPrint = p.format === 'print' || p.kind === 'print'; %>
 <% if (p.status === 'rejected' && p.review_note) { %><div class="flash error"><strong>Reviewer note:</strong> <%= p.review_note %></div><% } %>
 <form method="post" action="/author/books/<%= p.id || 'new' %>?_csrf=<%= csrf %>" enctype="multipart/form-data" data-once style="max-width:860px">
   <% if (isNew) { %>
   <fieldset>
     <legend>What are you publishing?</legend>
-    <div class="radio-cards">
-      <label><input type="radio" name="kind" value="book" <%= !sw ? 'checked' : '' %>><span>📚 Book or course material<small>PDF or Word — watermarked with each buyer's name and password-protected</small></span></label>
+    <div class="radio-cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <label><input type="radio" name="kind" value="book" <%= !sw && !isPrint ? 'checked' : '' %>><span>📚 E-book / course material<small>PDF or Word — watermarked with each buyer's name and password-protected</small></span></label>
+      <label><input type="radio" name="kind" value="print" <%= isPrint ? 'checked' : '' %>><span>📦 Printed book<small>Physical copies you ship to buyers anywhere in Nigeria</small></span></label>
       <label><input type="radio" name="kind" value="software" <%= sw ? 'checked' : '' %>><span>💻 Software or app<small>ZIP file — delivered as uploaded, no watermark</small></span></label>
     </div>
   </fieldset>
-  <% } else { %><input type="hidden" name="kind" value="<%= p.kind %>"><% } %>
+  <% } else { %><input type="hidden" name="kind" value="<%= isPrint ? 'print' : p.kind %>"><% } %>
+
+  <fieldset data-print hidden>
+    <legend>Printed copies &amp; shipping</legend>
+    <div class="grid2">
+      <div class="field"><label>Copies in stock</label><input type="number" min="0" name="stock" value="<%= p.stock != null ? p.stock : '' %>" placeholder="e.g. 50"></div>
+      <div class="field"><label>Weight of one copy (kg) <span class="hint">— sets the delivery price</span></label><input type="text" inputmode="decimal" name="weight_kg" value="<%= p.weight_kg || '' %>" placeholder="e.g. 0.6"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Ships from (state)</label><select name="ship_from_state"><option value="">— Choose —</option><% states.forEach(function(s){ %><option value="<%= s %>" <%= (p.ship_from_state || author.ship_state) === s ? 'selected' : '' %>><%= stateLabel(s) %></option><% }) %></select></div>
+      <div class="field"><label>Town / city</label><input type="text" name="ship_from_city" value="<%= p.ship_from_city || author.ship_city || '' %>" placeholder="e.g. Enugu"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Condition</label><select name="book_condition"><% ['New', 'Like new', 'Good (used)'].forEach(function(c){ %><option <%= p.book_condition === c ? 'selected' : '' %>><%= c %></option><% }) %></select></div>
+      <div class="field"><label>Number of pages <span class="hint">(optional)</span></label><input type="number" min="1" name="pages" value="<%= p.pages || '' %>"></div>
+    </div>
+    <p class="small muted" style="margin:0">You pack and send each order yourself. Buyers pay the delivery fee at checkout and it is added to your royalties. Royalties for printed books become withdrawable once the buyer confirms delivery (or automatically a couple of weeks after you mark it shipped).</p>
+  </fieldset>
 
   <fieldset>
     <legend>Details</legend>
@@ -37,8 +55,9 @@
       </div>
       <div class="field">
         <label><span data-book>Book file (PDF or Word .docx)</span><span data-software hidden>Software file (.zip)</span> <span class="hint">max <%= maxMb %> MB</span></label>
+        <div data-print hidden class="small muted">No file needed for a printed book — just a clear cover photo.</div>
         <% if (p.original_name) { %><div class="small muted" style="margin-bottom:.4rem">Current: <strong><%= p.original_name %></strong> — upload only to replace (needs re-approval)</div><% } %>
-        <input type="file" name="file" <%= isNew ? 'required' : '' %>>
+        <input type="file" name="file" data-digital-file>
       </div>
     </div>
   </fieldset>

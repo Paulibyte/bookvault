@@ -2,7 +2,7 @@
 <% const books = items.filter(function(i){ return i.kind !== 'software'; }); const apps = items.filter(function(i){ return i.kind === 'software'; }); const list = tab === 'software' ? apps : books; %>
 <main class="page wrap">
   <div class="spread"><h1>My library</h1>
-    <div class="row"><a class="btn sm ghost" href="/offline">📱 Saved on this device</a><% if (pending) { %><a class="btn sm ghost" href="/orders"><%= pending %> order<%= pending > 1 ? 's' : '' %> awaiting payment</a><% } %></div></div>
+    <div class="row"><% if (printOrders) { %><a class="btn sm accent" href="/orders">📦 <%= printOrders %> printed book<%= printOrders > 1 ? 's' : '' %> on the way</a><% } %><a class="btn sm ghost" href="/offline">📱 Saved on this device</a><% if (pending) { %><a class="btn sm ghost" href="/orders"><%= pending %> order<%= pending > 1 ? 's' : '' %> awaiting payment</a><% } %></div></div>
   <%- include('partials/flash') %>
   <div class="tabs-inline">
     <a class="chip <%= tab === 'book' ? 'on' : '' %>" href="/library">📚 Books (<%= books.length %>)</a>

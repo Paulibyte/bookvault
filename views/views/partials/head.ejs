@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title><%= typeof title !== 'undefined' && title ? title + ' · ' : '' %><%= settings.store_name %></title>
+<meta name="description" content="<%= settings.store_tagline %>">
+<meta name="theme-color" content="#0b1b4f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="<%= settings.store_name %>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css?v=5">
+<script src="/js/app.js?v=5" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="brand-mark"><img src="/icons/brand-mark.png" alt=""></span><%= settings.store_name %></a>
+    <button class="menu-btn" data-menu aria-label="Menu">☰</button>
+    <nav class="nav" id="nav">
+      <a href="/" class="<%= path === '/' && !locals.kindTab ? 'active' : '' %>">Books</a>
+      <a href="/?kind=software" class="<%= locals.kindTab === 'software' ? 'active' : '' %>">Apps</a>
+      <% if (user) { %>
+        <a href="/library" class="<%= path === '/library' ? 'active' : '' %>">My Library</a>
+        <a href="/orders" class="<%= path === '/orders' ? 'active' : '' %>">Orders</a>
+        <a href="/author" class="<%= path.startsWith('/author') ? 'active' : '' %>">Author</a>
+        <% if (user.is_admin) { %><a href="/admin" class="<%= path.startsWith('/admin') ? 'active' : '' %>">Admin</a><% } %>
+        <a href="/account">Account</a>
+        <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike">Log out</button></form>
+      <% } else { %>
+        <a href="/author">Publish</a>
+        <a href="/login">Log in</a>
+      <% } %>
+      <a href="/cart" class="cart-pill">Cart<span class="count"><%= cartCount %></span></a>
+    </nav>
+  </div>
+</header>
+<div class="install-bar" id="installBar" data-name="<%= settings.store_name %>" hidden>
+  <img src="/icons/icon-192.png" alt="">
+  <span id="installText">Install <strong><%= settings.store_name %></strong> on this device for quick access and offline reading.</span>
+  <button class="btn sm accent" id="installBtn">Install</button>
+  <button class="install-x" id="installClose" aria-label="Not now">✕</button>
+</div>

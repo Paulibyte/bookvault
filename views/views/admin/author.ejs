@@ -1,0 +1,57 @@
+<%- include('_top') %>
+<div class="section-title"><div class="row">
+  <% if (a.photo_file) { %><img src="/avatar/<%= a.photo_file %>" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover"><% } %>
+  <div><h1 style="margin:0"><%= a.pen_name %></h1><span class="badge <%= a.status %>"><%= a.status %></span></div></div>
+  <a href="/admin/authors" class="small">← Authors</a></div>
+<div class="two">
+  <div class="stack">
+    <div class="card">
+      <h2>Application</h2>
+      <dl class="kv">
+        <dt>Legal name</dt><dd><%= a.legal_name %></dd>
+        <dt>Account</dt><dd><%= a.full_name %> · <%= a.email %></dd>
+        <dt>Phone</dt><dd><%= a.phone %></dd>
+        <dt>Address</dt><dd><%= a.address || '—' %></dd>
+        <dt>Institution</dt><dd><%= a.institution || '—' %></dd>
+        <dt>ID</dt><dd><%= a.id_type || '—' %><% if (a.id_file) { %> · <a href="/admin/doc/<%= a.id_file %>" target="_blank">View ID document</a><% } %></dd>
+        <dt>Applied</dt><dd><%= a.created_at %><%= a.verified_at ? ' · verified ' + a.verified_at : '' %></dd>
+      </dl>
+      <% if (a.bio) { %><p class="desc small" style="margin-top:1rem"><%= a.bio %></p><% } %>
+      <% if (a.review_note) { %><p class="small muted">Last note: <%= a.review_note %></p><% } %>
+      <form method="post" action="/admin/authors/<%= a.id %>/status" class="stack" style="margin-top:1rem">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="field" style="margin:0"><label>Note to author <span class="hint">(required to reject or suspend)</span></label><input type="text" name="note"></div>
+        <div class="row">
+          <% if (a.status !== 'verified') { %><button class="btn green" name="status" value="verified">✓ Verify author</button><% } %>
+          <% if (a.status === 'pending') { %><button class="btn danger" name="status" value="rejected">Reject application</button><% } %>
+          <% if (a.status === 'verified') { %><button class="btn danger" name="status" value="suspended">Suspend (hides all titles)</button><% } %>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Titles</h2>
+      <% if (!products.length) { %><p class="muted">No titles submitted yet.</p><% } else { %>
+      <div class="table-wrap"><table><tbody><% products.forEach(function(p){ %><tr><td><a href="/admin/products/<%= p.id %>"><%= p.title %></a></td><td><span class="badge <%= p.status %>"><%= p.status %></span></td><td class="num"><%= naira(p.price_kobo) %></td><td class="num"><%= p.sold %> sold</td></tr><% }) %></tbody></table></div><% } %>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h2>Royalties</h2>
+      <div class="balance"><%= naira(bal.available) %></div>
+      <p class="small muted" style="margin:0">available · earned <%= naira(bal.earned) %> · paid <%= naira(bal.paid) %><%= bal.requested ? ' · requested ' + naira(bal.requested) : '' %></p>
+      <dl class="kv" style="margin-top:1rem"><dt>Bank</dt><dd><%= a.bank_name || '—' %></dd><dt>Account</dt><dd class="mono"><%= a.bank_account_number || '—' %></dd><dt>Name</dt><dd><%= a.bank_account_name || '—' %></dd><dt>Auto payout</dt><dd><%= a.auto_payout ? 'On' : 'Off' %></dd></dl>
+    </div>
+    <form class="card" method="post" action="/admin/authors/<%= a.id %>/commission">
+      <h2>Commission</h2>
+      <p class="small muted">The store keeps this % of each sale; the author gets the rest. Leave blank to use the default (<%= defaultPct %>%). Applies to future sales only.</p>
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="row"><input type="number" name="commission_pct" min="0" max="100" step="0.5" value="<%= a.commission_pct != null ? a.commission_pct : '' %>" placeholder="<%= defaultPct %>" style="width:120px"><span>% → author keeps <strong><%= 100 - pct %>%</strong></span><button class="btn sm">Save</button></div>
+    </form>
+    <div class="card">
+      <h2>Payouts</h2>
+      <% if (!payouts.length) { %><p class="muted">None yet.</p><% } else { %>
+      <table><tbody><% payouts.forEach(function(p){ %><tr><td class="small"><%= p.created_at.slice(0,10) %></td><td class="num"><%= naira(p.amount_kobo) %></td><td><span class="badge <%= p.status === 'paid' ? 'published' : p.status === 'rejected' ? 'rejected' : 'pending' %>"><%= p.status %></span></td></tr><% }) %></tbody></table><% } %>
+    </div>
+  </div>
+</div>
+<%- include('_bottom') %>

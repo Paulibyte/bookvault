@@ -1,0 +1,16 @@
+<%- include('partials/head') %>
+<main class="page wrap"><div class="narrow">
+  <h1>My account</h1>
+  <%- include('partials/flash') %>
+  <form class="card" method="post" action="/account">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label>Full name</label><input type="text" value="<%= user.full_name %>" disabled><div class="hint" style="margin-top:.3rem">Your name is printed on your books, so only the store can change it. Contact us if it's wrong.</div></div>
+    <div class="field"><label>Email</label><input type="email" value="<%= user.email %>" disabled></div>
+    <div class="field"><label>Phone</label><input type="tel" name="phone" value="<%= user.phone || '' %>"></div>
+    <h3 style="margin-top:1.5rem">Change password</h3>
+    <div class="field"><label>Current password</label><input type="password" name="current_password" autocomplete="current-password"></div>
+    <div class="field"><label>New password</label><input type="password" name="new_password" minlength="6" autocomplete="new-password"></div>
+    <button class="btn">Save</button>
+  </form>
+</div></main>
+<%- include('partials/foot') %>

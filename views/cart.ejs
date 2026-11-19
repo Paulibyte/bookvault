@@ -5,36 +5,73 @@
   <% if (!items.length) { %>
     <div class="card empty"><p>Your cart is empty.</p><a class="btn" href="/">Browse the store</a></div>
   <% } else { %>
+  <% const hasPrint = printItems.length > 0; const hasDigital = items.some(function(p){ return p.format !== 'print'; }); %>
   <div class="layout-2">
-    <div class="card">
-      <% items.forEach(function(p){ %>
-      <div class="line">
-        <%- include('partials/thumb', { p: p }) %>
-        <div class="grow"><a href="/book/<%= p.slug %>" style="text-decoration:none;font-weight:600;color:inherit"><%= p.title %></a><div class="muted small"><%= p.file_type.toUpperCase() %><%= p.author ? ' · ' + p.author : '' %></div></div>
-        <div class="price"><%= naira(p.price_kobo) %></div>
-        <form method="post" action="/cart/remove/<%= p.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm ghost" aria-label="Remove">✕</button></form>
+    <div class="stack">
+      <div class="card">
+        <% items.forEach(function(p){ %>
+        <div class="line">
+          <%- include('partials/thumb', { p: p }) %>
+          <div class="grow"><a href="/book/<%= p.slug %>" style="text-decoration:none;font-weight:600;color:inherit"><%= p.title %></a>
+            <div class="muted small"><% if (p.format === 'print') { %>📦 Printed book · ships from <%= stateLabel(p.ship_from_state || settings.store_ship_state) %><% } else { %><%= p.kind === 'software' ? 'Software' : p.file_type.toUpperCase() %> · instant download<% } %><%= p.author ? ' · ' + p.author : '' %></div></div>
+          <div class="price"><%= naira(p.price_kobo) %></div>
+          <form method="post" action="/cart/remove/<%= p.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm ghost" aria-label="Remove">✕</button></form>
+        </div>
+        <% }) %>
       </div>
-      <% }) %>
+
+      <% if (hasPrint && user) { %>
+      <div class="card" id="delivery">
+        <h2>Delivery details</h2>
+        <% if (!shipOn) { %><div class="flash error">Delivery of printed books is paused right now. Remove printed books to check out.</div><% } %>
+        <div class="grid2">
+          <div class="field"><label>Receiver's name</label><input form="checkout" type="text" name="ship_name" value="<%= addr.ship_name || '' %>" required></div>
+          <div class="field"><label>Receiver's phone</label><input form="checkout" type="tel" name="ship_phone" value="<%= addr.ship_phone || '' %>" required></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>State</label>
+            <select form="checkout" name="ship_state" data-ship-state required>
+              <option value="">— Choose state —</option>
+              <% states.forEach(function(s){ %><option value="<%= s %>" <%= addr.ship_state === s ? 'selected' : '' %>><%= stateLabel(s) %></option><% }) %>
+            </select></div>
+          <div class="field"><label>Town / city</label><input form="checkout" type="text" name="ship_city" value="<%= addr.ship_city || '' %>" placeholder="e.g. Owerri, Nsukka, Ikeja" required></div>
+        </div>
+        <div class="field"><label>Delivery address <span class="hint">(needed for doorstep delivery)</span></label><input form="checkout" type="text" name="ship_address" value="<%= addr.ship_address || '' %>" placeholder="House number, street, area — or hostel / department"></div>
+        <div class="field"><label>Nearest landmark or bus park <span class="hint">(optional)</span></label><input form="checkout" type="text" name="ship_landmark" value="<%= addr.ship_landmark || '' %>" placeholder="e.g. opposite main gate, or GUO park Owerri"></div>
+        <label style="margin-top:.5rem">Delivery option</label>
+        <div class="pay-opts" data-ship-options data-selected="<%= addr.ship_method || '' %>">
+          <% if (quote && Object.keys(quote.options).length) { Object.values(quote.options).forEach(function(o, i){ %>
+            <label class="pay-opt"><input form="checkout" type="radio" name="ship_method" value="<%= o.method %>" data-fee="<%= o.total %>" <%= (addr.ship_method ? addr.ship_method === o.method : i === 0) ? 'checked' : '' %>><span><strong><%= o.label %> — <%= o.total ? naira(o.total) : 'Free' %></strong><span class="small muted"><%= o.eta %><%= quote.parcels.length > 1 ? ' · ' + quote.parcels.length + ' parcels from different sellers' : '' %></span></span></label>
+          <% }) } else { %>
+            <p class="small muted" style="margin:0">Choose your state to see delivery prices.</p>
+          <% } %>
+        </div>
+        <p class="small muted" style="margin:.8rem 0 0"><strong>Bus-park pickup:</strong> the book is sent by waybill on an inter-state bus to the park you name; you collect it with the waybill number we share. <strong>Collect from seller</strong> is only offered when the seller is in your state.</p>
+      </div>
+      <% } %>
     </div>
-    <form class="card stack" method="post" action="/checkout" data-once>
+
+    <form class="card stack" id="checkout" method="post" action="/checkout" data-once data-subtotal="<%= subtotal %>" style="position:sticky;top:80px">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
-      <div class="spread"><span class="muted">Total</span><span class="price" style="font-size:1.6rem"><%= naira(total) %></span></div>
+      <div class="spread"><span class="muted">Items</span><span><%= naira(subtotal) %></span></div>
+      <% if (hasPrint) { %><div class="spread"><span class="muted">Delivery</span><span data-ship-fee><%= quote && Object.values(quote.options)[0] ? '—' : 'Choose state' %></span></div><% } %>
+      <div class="spread" style="border-top:1px solid var(--line);padding-top:.6rem"><span class="muted">Total</span><span class="price" style="font-size:1.6rem" data-grand-total><%= naira(subtotal) %></span></div>
       <% if (!user) { %>
-        <p class="small muted">You need an account so your books can be personalised with your name.</p>
+        <p class="small muted">You need an account so your books can be personalised and delivered to you.</p>
         <a class="btn accent block" href="/register?next=/cart">Create account to checkout</a>
         <a class="btn ghost block" href="/login?next=/cart">I already have an account</a>
       <% } else { %>
         <div class="pay-opts">
           <% const opayOn = settings.opay_enabled === '1' && opayReady; %>
           <% if (opayOn) { %>
-          <label class="pay-opt"><input type="radio" name="method" value="opay" checked><span><strong>Pay online with OPay</strong><span class="small muted">Card, bank transfer, USSD or OPay wallet. Downloads unlock instantly.</span></span></label>
+          <label class="pay-opt"><input type="radio" name="method" value="opay" checked><span><strong>Pay online with OPay</strong><span class="small muted">Card, bank transfer, USSD or OPay wallet. Confirmed instantly.</span></span></label>
           <% } %>
           <% if (settings.bank_enabled === '1') { %>
-          <label class="pay-opt"><input type="radio" name="method" value="bank" <%= opayOn ? '' : 'checked' %>><span><strong>Direct bank deposit / transfer</strong><span class="small muted">Pay into our account and upload your receipt. Unlocks once we confirm.</span></span></label>
+          <label class="pay-opt"><input type="radio" name="method" value="bank" <%= opayOn ? '' : 'checked' %>><span><strong>Direct bank deposit / transfer</strong><span class="small muted">Pay into our account and upload your receipt.</span></span></label>
           <% } %>
         </div>
-        <button class="btn accent block">Place order</button>
-        <p class="small muted" style="margin:0">Books will be licensed to <strong><%= user.full_name %></strong>.</p>
+        <button class="btn accent block" <%= hasPrint && !shipOn ? 'disabled' : '' %>>Place order</button>
+        <% if (hasDigital) { %><p class="small muted" style="margin:0">Digital books will be licensed to <strong><%= user.full_name %></strong>.</p><% } %>
       <% } %>
     </form>
   </div>

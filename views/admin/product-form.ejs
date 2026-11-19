@@ -1,5 +1,5 @@
 <%- include('_top') %>
-<% const sw = p.kind === 'software'; %>
+<% const sw = p.kind === 'software'; const isPrint = p.format === 'print'; %>
 <div class="section-title"><h1 style="margin:0"><%= title %></h1><a href="/admin/products<%= p.status === 'pending' ? '?f=review' : '' %>" class="small">← Products</a></div>
 
 <% if (author) { %>
@@ -37,10 +37,20 @@
 <form method="post" action="/admin/products/<%= p.id || 'new' %>?_csrf=<%= csrf %>" enctype="multipart/form-data" data-once style="max-width:860px">
   <fieldset>
     <legend>Type</legend>
-    <div class="radio-cards" style="margin:0 0 1rem">
-      <label><input type="radio" name="kind" value="book" <%= !sw ? 'checked' : '' %>><span>📚 Book / course material<small>PDF &amp; Word are watermarked + password-protected</small></span></label>
+    <% if (!p.id) { %>
+    <div class="radio-cards" style="margin:0 0 1rem;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <label><input type="radio" name="kind" value="book" <%= !sw && !isPrint ? 'checked' : '' %>><span>📚 E-book / course material<small>PDF &amp; Word are watermarked + password-protected</small></span></label>
+      <label><input type="radio" name="kind" value="print" <%= isPrint ? 'checked' : '' %>><span>📦 Printed book<small>Physical copies shipped across Nigeria</small></span></label>
       <label><input type="radio" name="kind" value="software" <%= sw ? 'checked' : '' %>><span>💻 Software / app<small>Delivered exactly as uploaded — never stamped</small></span></label>
     </div>
+    <% } else if (isPrint) { %>
+    <input type="hidden" name="kind" value="print"><p style="margin:0 0 1rem"><span class="badge print">📦 Printed book</span></p>
+    <% } else { %>
+    <div class="radio-cards" style="margin:0 0 1rem">
+      <label><input type="radio" name="kind" value="book" <%= !sw ? 'checked' : '' %>><span>📚 E-book / course material<small>PDF &amp; Word are watermarked + password-protected</small></span></label>
+      <label><input type="radio" name="kind" value="software" <%= sw ? 'checked' : '' %>><span>💻 Software / app<small>Delivered exactly as uploaded — never stamped</small></span></label>
+    </div>
+    <% } %>
   </fieldset>
   <fieldset>
     <legend>Details</legend>
@@ -74,6 +84,22 @@
     </div>
     <div class="field"><label>Description</label><textarea name="description" placeholder="What's inside, which course/level it's for, edition, system requirements…"><%= p.description || '' %></textarea></div>
   </fieldset>
+  <fieldset data-print hidden>
+    <legend>Printed copies &amp; shipping</legend>
+    <div class="grid2">
+      <div class="field"><label>Copies in stock</label><input type="number" min="0" name="stock" value="<%= p.stock != null ? p.stock : '' %>" placeholder="e.g. 40"></div>
+      <div class="field"><label>Weight of one copy (kg)</label><input type="text" inputmode="decimal" name="weight_kg" value="<%= p.weight_kg || '' %>" placeholder="e.g. 0.6"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Ships from (state) <span class="hint">— blank = store / author default</span></label><select name="ship_from_state"><option value="">— Default —</option><% states.forEach(function(s){ %><option value="<%= s %>" <%= p.ship_from_state === s ? 'selected' : '' %>><%= stateLabel(s) %></option><% }) %></select></div>
+      <div class="field"><label>Town / city</label><input type="text" name="ship_from_city" value="<%= p.ship_from_city || '' %>"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Condition</label><select name="book_condition"><% ['New', 'Like new', 'Good (used)'].forEach(function(c){ %><option <%= p.book_condition === c ? 'selected' : '' %>><%= c %></option><% }) %></select></div>
+      <div class="field"><label>Pages <span class="hint">(optional)</span></label><input type="number" min="1" name="pages" value="<%= p.pages || '' %>"></div>
+    </div>
+    <p class="small muted" style="margin:0">If assigned to an author, the author ships it and receives the delivery fee. Otherwise the store ships it from <a href="/admin/settings#shipping">your store location</a>.</p>
+  </fieldset>
   <fieldset>
     <legend>Files</legend>
     <div class="grid2">
@@ -85,7 +111,8 @@
       <div class="field">
         <label><span data-book>Book file (PDF, Word .docx, ZIP)</span><span data-software hidden>Software file (.zip recommended)</span> <span class="hint">max <%= maxMb %> MB</span></label>
         <% if (p.original_name) { %><div class="small muted" style="margin-bottom:.4rem">Current: <strong><%= p.original_name %></strong> (<%= humanSize(p.file_size) %>) — upload only to replace</div><% } %>
-        <input type="file" name="file" <%= p.id ? '' : 'required' %>>
+        <div data-print hidden class="small muted">No file needed for a printed book — upload a cover photo.</div>
+        <input type="file" name="file" data-digital-file>
       </div>
     </div>
     <div data-book>

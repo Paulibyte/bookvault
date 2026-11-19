@@ -28,6 +28,32 @@
       <span class="hint"><% if (opayReady) { %>✓ Keys found in .env — mode: <strong><%= opayMode %></strong><% } else { %>⚠ Add OPAY_MERCHANT_ID, OPAY_PUBLIC_KEY and OPAY_SECRET_KEY to the .env file, then restart the app.<% } %></span></span></label>
   </fieldset>
 
+  <fieldset id="shipping">
+    <legend>Printed books &amp; delivery across Nigeria</legend>
+    <label class="check"><input type="checkbox" name="shipping_enabled" value="1" <%= settings.shipping_enabled === '1' ? 'checked' : '' %>><span>Sell and deliver printed books</span></label>
+    <div class="grid2" style="margin-top:.8rem">
+      <div class="field"><label>Store ships from (state)</label><select name="store_ship_state"><% states.forEach(function(s){ %><option value="<%= s %>" <%= settings.store_ship_state === s ? 'selected' : '' %>><%= stateLabel(s) %></option><% }) %></select></div>
+      <div class="field"><label>Town / city</label><input type="text" name="store_ship_city" value="<%= settings.store_ship_city %>"></div>
+    </div>
+    <div class="field"><label>Store pickup address <span class="hint">(for "Collect from seller" on store books)</span></label><input type="text" name="store_pickup_address" value="<%= settings.store_pickup_address %>"></div>
+    <p class="small muted">Prices per parcel in ₦. <strong>Same state</strong> = seller and buyer in the same state; <strong>same zone</strong> = same geopolitical zone (e.g. Imo → Enugu); <strong>nationwide</strong> = everywhere else. "Each extra kg" is added for every kg above the first. Leave a box empty to not offer that option for that zone.</p>
+    <div class="table-wrap"><table class="rate-table">
+      <thead><tr><th>Option</th><th>Name shown to buyers</th><th>Same state</th><th>Same zone</th><th>Nationwide</th><th>Each extra kg</th></tr></thead>
+      <tbody>
+      <% ['doorstep','park','pickup'].forEach(function(m){ const r = rates[m] || {}; const v = function(x){ return x == null || x === '' ? '' : Number(x) / 100; }; %>
+        <tr>
+          <td><label class="check" style="margin:0"><input type="checkbox" name="rate_<%= m %>_on" value="1" <%= r.on ? 'checked' : '' %>><span><%= { doorstep: 'Doorstep', park: 'Bus park', pickup: 'Pickup' }[m] %></span></label></td>
+          <td><input type="text" name="rate_<%= m %>_label" value="<%= r.label || '' %>"></td>
+          <% ['same_state','same_region','nationwide'].forEach(function(z){ %><td><input type="text" inputmode="decimal" name="rate_<%= m %>_<%= z %>" value="<%= v(r[z]) %>" <%= m === 'pickup' && z !== 'same_state' ? 'disabled title="Pickup is only offered within the same state"' : '' %>></td><% }) %>
+          <td><input type="text" inputmode="decimal" name="rate_<%= m %>_per_kg" value="<%= v(r.per_kg) %>"></td>
+        </tr>
+        <tr><td class="small muted" style="text-align:right">Delivery time</td><td></td>
+          <% ['same_state','same_region','nationwide'].forEach(function(z){ %><td><input type="text" name="eta_<%= m %>_<%= z %>" value="<%= (r.eta || {})[z] || '' %>" placeholder="e.g. 2–4 days" <%= m === 'pickup' && z !== 'same_state' ? 'disabled' : '' %>></td><% }) %><td></td></tr>
+      <% }) %>
+      </tbody></table></div>
+    <div class="field" style="max-width:360px;margin-top:1rem"><label>Hold author royalties on printed books for (days)</label><input type="number" min="0" max="90" name="royalty_hold_days" value="<%= settings.royalty_hold_days %>"><div class="hint" style="margin-top:.3rem">Royalties for a shipped printed book become withdrawable when the buyer confirms delivery, or after this many days.</div></div>
+  </fieldset>
+
   <fieldset id="authors">
     <legend>Authors, royalties &amp; reviews</legend>
     <label class="check"><input type="checkbox" name="authors_enabled" value="1" <%= settings.authors_enabled === '1' ? 'checked' : '' %>><span>Allow authors to apply and submit titles <span class="hint">(page: /author)</span></span></label>

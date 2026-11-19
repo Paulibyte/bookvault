@@ -1,0 +1,15 @@
+<%- include('partials/head') %>
+<main class="page wrap"><div class="narrow">
+  <div class="card">
+    <h1>Log in</h1>
+    <%- include('partials/flash') %>
+    <form method="post" action="/login" data-once>
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="next" value="<%= next %>">
+      <div class="field"><label>Email</label><input type="email" name="email" value="<%= email %>" required autocomplete="email"></div>
+      <div class="field"><label>Password</label><input type="password" name="password" required autocomplete="current-password"></div>
+      <button class="btn block">Log in</button>
+    </form>
+    <p class="small muted" style="margin:1rem 0 0">New here? <a href="/register<%= next ? '?next=' + encodeURIComponent(next) : '' %>">Create an account</a>. Forgot your password? Contact the store<% if (settings.support_whatsapp) { %> on <a href="https://wa.me/<%= settings.support_whatsapp.replace(/[^0-9]/g,'') %>">WhatsApp</a><% } %>.</p>
+  </div>
+</div></main>
+<%- include('partials/foot') %>

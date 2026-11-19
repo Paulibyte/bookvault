@@ -10,6 +10,7 @@
   <div class="tabs-inline">
     <a class="chip <%= path === '/author/dashboard' ? 'on' : '' %>" href="/author/dashboard">📊 Sales</a>
     <a class="chip <%= path.startsWith('/author/books') ? 'on' : '' %>" href="/author/books">📚 My titles</a>
+    <a class="chip <%= path === '/author/shipments' ? 'on' : '' %>" href="/author/shipments">🚚 To ship<%= locals.toShip ? ' (' + toShip + ')' : '' %></a>
     <a class="chip <%= path === '/author/payouts' ? 'on' : '' %>" href="/author/payouts">💰 Royalties</a>
     <a class="chip <%= path === '/author/profile' ? 'on' : '' %>" href="/author/profile">👤 Profile</a>
   </div>

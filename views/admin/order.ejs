@@ -36,6 +36,13 @@
     </div>
   </div>
   <div class="stack">
+    <% if (o.ship_state) { %>
+    <div class="card">
+      <h2>Delivery</h2>
+      <p style="margin:0"><strong><%= o.ship_name %></strong> · <%= o.ship_phone %><br><span class="small"><%= [o.ship_address, o.ship_landmark, o.ship_city, o.ship_state].filter(Boolean).join(', ') %></span></p>
+      <p class="small muted" style="margin:.5rem 0 0"><%= { doorstep: 'Doorstep delivery', park: 'Bus-park pickup', pickup: 'Collect from seller' }[o.ship_method] %> · <%= naira(o.shipping_kobo) %> · <a href="/admin/shipments?status=all">Manage shipments</a></p>
+    </div>
+    <% } %>
     <div class="card">
       <h2>Buyer</h2>
       <p style="margin:0"><strong><%= o.full_name %></strong><br><%= o.email %><br><%= o.phone %></p>

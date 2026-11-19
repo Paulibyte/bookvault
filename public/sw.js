@@ -1,12 +1,12 @@
 // BookVault service worker: app shell + offline books
-const STATIC = 'bv-static-v4';
-const RUNTIME = 'bv-runtime-v4';
+const STATIC = 'bv-static-v5';
+const RUNTIME = 'bv-runtime-v5';
 const BOOKS = 'bv-books';   // personalised PDFs the reader saved for offline use
 const PAGES = 'bv-pages';   // reader pages saved for offline use
 
 const PRECACHE = [
   '/offline',
-  '/css/style.css?v=4', '/css/reader.css?v=4', '/js/app.js?v=4', '/js/reader.mjs?v=4',
+  '/css/style.css?v=5', '/css/reader.css?v=5', '/js/app.js?v=5', '/js/reader.mjs?v=5',
   '/vendor/pdfjs/legacy/build/pdf.min.mjs', '/vendor/pdfjs/legacy/build/pdf.worker.min.mjs',
   '/icons/icon-192.png', '/icons/brand-mark.png', '/favicon.ico',
 ];

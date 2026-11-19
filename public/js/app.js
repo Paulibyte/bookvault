@@ -108,12 +108,52 @@
   var kind = document.querySelector('[name=kind]');
   if (kind) {
     var sync = function () {
-      var sw = (document.querySelector('[name=kind]:checked') || kind).value === 'software';
+      var v = (document.querySelector('[name=kind]:checked') || kind).value;
+      var sw = v === 'software', pr = v === 'print';
       document.querySelectorAll('[data-software]').forEach(function (el) { el.hidden = !sw; });
-      document.querySelectorAll('[data-book]').forEach(function (el) { el.hidden = sw; });
+      document.querySelectorAll('[data-book]').forEach(function (el) { el.hidden = sw || pr; });
+      document.querySelectorAll('[data-print]').forEach(function (el) { el.hidden = !pr; });
+      document.querySelectorAll('[data-digital-file]').forEach(function (el) { el.hidden = pr; });
     };
     document.querySelectorAll('[name=kind]').forEach(function (r) { r.addEventListener('change', sync); });
     sync();
+  }
+
+  // ---------- Cart: live delivery prices ----------
+  var stateSel = document.querySelector('[data-ship-state]');
+  var checkout = document.getElementById('checkout');
+  if (checkout) {
+    var nf = function (k) { return '₦' + (k / 100).toLocaleString('en-NG'); };
+    var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var feeEl = document.querySelector('[data-ship-fee]');
+    var totalEl = document.querySelector('[data-grand-total]');
+    var box = document.querySelector('[data-ship-options]');
+    var updateTotal = function () {
+      var sub = Number(checkout.dataset.subtotal) || 0;
+      var picked = document.querySelector('input[name=ship_method]:checked');
+      var fee = picked ? Number(picked.dataset.fee) : 0;
+      if (feeEl) feeEl.textContent = picked ? (fee ? nf(fee) : 'Free') : 'Choose option';
+      totalEl.textContent = nf(sub + fee);
+    };
+    document.addEventListener('change', function (e) { if (e.target.name === 'ship_method') updateTotal(); });
+    if (stateSel && box) {
+      stateSel.addEventListener('change', function () {
+        if (!stateSel.value) { box.innerHTML = '<p class="small muted" style="margin:0">Choose your state to see delivery prices.</p>'; updateTotal(); return; }
+        box.innerHTML = '<p class="small muted" style="margin:0">Checking delivery prices…</p>';
+        fetch('/cart/quote?state=' + encodeURIComponent(stateSel.value), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (q) {
+          var opts = Object.keys(q.options || {}).map(function (k) { return q.options[k]; });
+          if (!opts.length) { box.innerHTML = '<p class="small muted" style="margin:0">No delivery option is available to this state yet. Contact the store.</p>'; updateTotal(); return; }
+          var prev = box.dataset.selected;
+          box.innerHTML = opts.map(function (o, i) {
+            var on = prev ? prev === o.method : i === 0;
+            return '<label class="pay-opt"><input form="checkout" type="radio" name="ship_method" value="' + o.method + '" data-fee="' + o.total + '"' + (on ? ' checked' : '') + '><span><strong>' + esc(o.label) + ' — ' + (o.total ? nf(o.total) : 'Free') + '</strong><span class="small muted">' + esc(o.eta) + (q.parcels > 1 ? ' · ' + q.parcels + ' parcels from different sellers' : '') + '</span></span></label>';
+          }).join('');
+          if (!box.querySelector('input:checked') && box.querySelector('input')) box.querySelector('input').checked = true;
+          updateTotal();
+        });
+      });
+    }
+    updateTotal();
   }
 
   // ---------- Admin: assign product to a verified author ----------

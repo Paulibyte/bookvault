@@ -1,0 +1,44 @@
+<%- include('_top') %>
+<div class="tabs-inline">
+  <% [['','All'],['processing','To ship'],['shipped','Shipped'],['delivered','Delivered']].forEach(function(t){ %>
+  <a class="chip <%= status === t[0] ? 'on' : '' %>" href="/author/shipments<%= t[0] ? '?status=' + t[0] : '' %>"><%= t[1] %></a><% }) %>
+</div>
+<p class="small muted">Pack each order, send it with any courier or inter-state bus (waybill), then mark it shipped with the courier and tracking/waybill number. Royalties and the delivery fee become withdrawable when the buyer confirms receipt, or <%= holdDays %> days after you mark it shipped.</p>
+<% if (!rows.length) { %><div class="card empty">No printed-book orders here yet.</div><% } %>
+<div class="lib">
+<% rows.forEach(function(r){ %>
+  <div class="card stack">
+    <div class="spread">
+      <div><strong>Order <span class="mono"><%= r.reference %></span></strong> <span class="muted small">· paid <%= (r.paid_at || '').slice(0,16) %></span></div>
+      <span class="status <%= r.status === 'delivered' ? 'paid' : r.status === 'cancelled' ? 'cancelled' : 'awaiting_confirmation' %>"><%= r.status === 'processing' ? 'to ship' : r.status %></span>
+    </div>
+    <div class="grid2" style="gap:1rem">
+      <div>
+        <div class="small muted">Books</div>
+        <div><%= r.items.join(', ') %></div>
+        <div class="small muted" style="margin-top:.5rem">Delivery</div>
+        <div><strong><%= { doorstep: 'Doorstep delivery', park: 'Bus-park pickup (waybill)', pickup: 'Buyer collects from you' }[r.method] %></strong> · <%= naira(r.fee_kobo) %> paid by buyer</div>
+      </div>
+      <div>
+        <div class="small muted">Send to</div>
+        <div><strong><%= r.ship_name %></strong> · <a href="tel:<%= r.ship_phone %>"><%= r.ship_phone %></a></div>
+        <div class="small"><%= [r.ship_address, r.ship_landmark, r.ship_city, stateLabel(r.ship_state)].filter(Boolean).join(', ') %></div>
+      </div>
+    </div>
+    <% if (r.status === 'processing' || r.status === 'shipped') { %>
+    <form method="post" action="/author/shipments/<%= r.id %>" class="row" style="align-items:flex-end">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <% if (r.method !== 'pickup') { %>
+      <div class="field" style="margin:0;flex:1;min-width:160px"><label class="small">Courier / transport company</label><input type="text" name="courier" value="<%= r.courier || '' %>" placeholder="e.g. GIG Logistics, GUO, Peace Mass"></div>
+      <div class="field" style="margin:0;flex:1;min-width:160px"><label class="small">Tracking / waybill number</label><input type="text" name="tracking" value="<%= r.tracking || '' %>"></div>
+      <% } else { %>
+      <div class="field" style="margin:0;flex:2;min-width:200px"><label class="small">Note to buyer</label><input type="text" name="note" value="<%= r.note || '' %>" placeholder="e.g. Ready — collect at the department office, 9am–3pm"></div>
+      <% } %>
+      <% if (r.status === 'processing') { %><button class="btn green" name="status" value="shipped"><%= r.method === 'pickup' ? 'Ready for pickup' : 'Mark shipped' %></button><% } %>
+      <% if (r.status === 'shipped') { %><button class="btn ghost" name="status" value="shipped">Update details</button><button class="btn green" name="status" value="delivered">Mark delivered</button><% } %>
+    </form>
+    <% } else if (r.courier || r.tracking) { %><div class="small"><%= r.courier %> · <span class="mono"><%= r.tracking %></span></div><% } %>
+  </div>
+<% }) %>
+</div>
+<%- include('_bottom') %>

@@ -114,6 +114,16 @@ const DEFAULT_SETTINGS = {
   default_commission_pct: '30',
   payout_min_kobo: '500000',
   reviews_enabled: '1',
+  shipping_enabled: '1',
+  store_ship_state: 'Imo',
+  store_ship_city: 'Owerri',
+  store_pickup_address: '',
+  royalty_hold_days: '14',
+  shipping_rates: JSON.stringify({
+    doorstep: { on: true, label: 'Doorstep delivery', same_state: 250000, same_region: 400000, nationwide: 600000, per_kg: 50000, eta: { same_state: '1–2 days', same_region: '2–4 days', nationwide: '3–7 days' } },
+    park: { on: true, label: 'Bus-park pickup (waybill)', same_state: 150000, same_region: 250000, nationwide: 350000, per_kg: 30000, eta: { same_state: '1–2 days', same_region: '1–3 days', nationwide: '2–5 days' } },
+    pickup: { on: true, label: 'Collect from seller', same_state: 0, same_region: null, nationwide: null, per_kg: 0, eta: { same_state: 'Arrange with seller' } },
+  }),
 };
 
 // ---------- Migrations (safe to run on an existing database) ----------
@@ -192,6 +202,46 @@ addColumn('order_items', 'author_id', 'INTEGER');
 addColumn('order_items', 'commission_pct', 'REAL');
 addColumn('order_items', 'author_earning_kobo', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('order_items', 'reader_file', 'TEXT');
+// ---- v3: printed books & shipping ----
+addColumn('products', 'format', "TEXT NOT NULL DEFAULT 'digital'");      // digital | print
+addColumn('products', 'stock', 'INTEGER');
+addColumn('products', 'weight_kg', 'REAL');
+addColumn('products', 'book_condition', 'TEXT');
+addColumn('products', 'ship_from_state', 'TEXT');
+addColumn('products', 'ship_from_city', 'TEXT');
+addColumn('orders', 'ship_name', 'TEXT');
+addColumn('orders', 'ship_phone', 'TEXT');
+addColumn('orders', 'ship_address', 'TEXT');
+addColumn('orders', 'ship_city', 'TEXT');
+addColumn('orders', 'ship_state', 'TEXT');
+addColumn('orders', 'ship_landmark', 'TEXT');
+addColumn('orders', 'ship_method', 'TEXT');
+addColumn('orders', 'shipping_kobo', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('order_items', 'shipment_id', 'INTEGER');
+addColumn('authors', 'ship_state', 'TEXT');
+addColumn('authors', 'ship_city', 'TEXT');
+addColumn('authors', 'pickup_address', 'TEXT');
+addColumn('users', 'ship_json', 'TEXT');
+db.exec(`
+CREATE TABLE IF NOT EXISTS shipments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  author_id INTEGER,                         -- NULL = shipped by the store
+  origin_state TEXT, origin_city TEXT,
+  method TEXT NOT NULL,                      -- doorstep | park | pickup
+  zone TEXT,
+  weight_kg REAL,
+  fee_kobo INTEGER NOT NULL DEFAULT 0,
+  author_shipping_kobo INTEGER NOT NULL DEFAULT 0,   -- shipping fee passed to the author who ships
+  status TEXT NOT NULL DEFAULT 'awaiting_payment',   -- awaiting_payment | processing | shipped | delivered | cancelled
+  courier TEXT, tracking TEXT, note TEXT,
+  shipped_at TEXT, delivered_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ship_order ON shipments(order_id);
+CREATE INDEX IF NOT EXISTS idx_ship_author ON shipments(author_id, status);
+`);
+
 db.exec(`CREATE INDEX IF NOT EXISTS idx_items_author ON order_items(author_id);
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status, is_active);`);
 

@@ -4,6 +4,7 @@
     <div class="card">
       <div class="k muted small" style="text-transform:uppercase;letter-spacing:.05em;font-weight:700">Available to withdraw</div>
       <div class="balance"><%= naira(bal.available) %></div>
+      <% if (bal.pending) { %><p class="small" style="margin:.2rem 0"><strong><%= naira(bal.pending) %></strong> from printed books is waiting for delivery confirmation.</p><% } %>
       <p class="small muted">Earned <%= naira(bal.earned) %> · Paid <%= naira(bal.paid) %><%= bal.requested ? ' · Processing ' + naira(bal.requested) : '' %><br>
       You keep <strong><%= 100 - commission %>%</strong> of each sale. Minimum payout: <strong><%= naira(minPayout) %></strong>.</p>
       <% if (bal.requested) { %>

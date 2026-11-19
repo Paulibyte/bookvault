@@ -1,7 +1,7 @@
 <%- include('../partials/head') %>
 <section class="hero"><div class="wrap">
   <h1>Publish your books. Earn on every sale.</h1>
-  <p>Join <%= settings.store_name %> as a verified author. Upload your textbooks, notes or software — we handle payments, delivery and copy protection, and pay your royalties to your bank account.</p>
+  <p>Join <%= settings.store_name %> as a verified author. Sell e-books, printed books and software — we handle payments, delivery and copy protection, and pay your royalties to your bank account.</p>
 </div></section>
 <main class="wrap page">
   <%- include('../partials/flash') %>
@@ -9,6 +9,7 @@
     <div class="card"><h3>🔒 Protected copies</h3><p class="small muted" style="margin:0">Every copy sold carries the buyer's name on every page and a unique password, discouraging piracy.</p></div>
     <div class="card"><h3>💰 <%= 100 - commission %>% royalties</h3><p class="small muted" style="margin:0">You keep <%= 100 - commission %>% of each sale. Request payout once you reach <%= naira(minPayout) %>, or let it pay out automatically.</p></div>
     <div class="card"><h3>📈 Live sales dashboard</h3><p class="small muted" style="margin:0">See every sale, your earnings per title, ratings and reviews from readers.</p></div>
+    <div class="card"><h3>📦 Printed books too</h3><p class="small muted" style="margin:0">List your printed copies with stock and weight. Buyers anywhere in Nigeria pay delivery at checkout; you ship and keep the delivery fee.</p></div>
     <div class="card"><h3>✅ Simple approval</h3><p class="small muted" style="margin:0">Get verified once, then submit titles with a short copyright declaration. We review and publish.</p></div>
   </div>
 

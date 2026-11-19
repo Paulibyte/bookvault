@@ -1,0 +1,36 @@
+<%- include('_top') %>
+<div class="kpis">
+  <div class="card kpi hl"><div class="k">Available royalties</div><div class="v"><%= naira(bal.available) %></div></div>
+  <div class="card kpi"><div class="k">Total earned</div><div class="v"><%= naira(bal.earned) %></div></div>
+  <% if (bal.pending) { %><a class="card kpi warn" href="/author/shipments" style="text-decoration:none;color:inherit"><div class="k">Awaiting delivery</div><div class="v"><%= naira(bal.pending) %></div></a><% } %>
+  <div class="card kpi"><div class="k">Copies sold</div><div class="v"><%= totals.n %></div></div>
+  <div class="card kpi"><div class="k">Gross sales</div><div class="v"><%= naira(totals.gross) %></div></div>
+  <div class="card kpi"><div class="k">Paid out</div><div class="v"><%= naira(bal.paid) %></div></div>
+</div>
+<% if (toShip) { %><div class="warnbar">📦 You have <strong><%= toShip %></strong> printed-book order<%= toShip === 1 ? '' : 's' %> to ship. <a href="/author/shipments">Open orders to ship</a></div><% } %>
+<% if (bal.available >= minPayout && !bal.requested) { %><div class="warnbar">🎉 You've reached the <%= naira(minPayout) %> payout threshold. <a href="/author/payouts">Request your royalties</a>.</div><% } %>
+<div class="two">
+  <div class="card">
+    <div class="spread"><h2 style="margin:0">Earnings — last 6 months</h2><span class="small muted">You keep <%= 100 - commission %>% of each sale</span></div>
+    <% const max = Math.max.apply(null, months.map(function(m){return m.v})) || 1; %>
+    <div class="bars"><% months.forEach(function(m){ %><div class="b" style="height:<%= Math.max(2, Math.round(m.v / max * 100)) %>%" title="<%= m.label %>: <%= naira(m.v) %> (<%= m.n %> sold)"></div><% }) %></div>
+    <div class="bars-x"><% months.forEach(function(m){ %><span><%= m.label %></span><% }) %></div>
+  </div>
+  <div class="card">
+    <h2>Recent sales</h2>
+    <% if (!recent.length) { %><p class="muted">No sales yet. Share your book links with your students!</p><% } else { %>
+    <div class="table-wrap"><table><tbody><% recent.forEach(function(r){ %><tr><td class="small"><%= (r.paid_at || '').slice(0,10) %></td><td class="small"><%= r.title %></td><td class="num small">+<%= naira(r.author_earning_kobo) %></td></tr><% }) %></tbody></table></div><% } %>
+  </div>
+</div>
+<div class="card" style="margin-top:1.25rem">
+  <h2>Sales by title</h2>
+  <% if (!books.length) { %><p class="muted">You haven't submitted any titles yet. <a href="/author/books/new">Submit your first title</a>.</p><% } else { %>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Title</th><th>Status</th><th>Rating</th><th class="num">Price</th><th class="num">Sold</th><th class="num">Your earnings</th></tr></thead>
+    <tbody><% books.forEach(function(b){ %>
+      <tr><td><strong><%= b.title %></strong></td><td><span class="badge <%= b.status %>"><%= b.status %></span></td>
+      <td><%- b.rating_count ? include('../partials/stars', { r: b.rating_avg, n: b.rating_count }) : '<span class="muted small">—</span>' %></td>
+      <td class="num"><%= naira(b.price_kobo) %></td><td class="num"><%= b.sold %></td><td class="num"><strong><%= naira(b.earned) %></strong></td></tr>
+    <% }) %></tbody></table></div><% } %>
+</div>
+<%- include('_bottom') %>

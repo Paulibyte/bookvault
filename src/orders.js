@@ -9,13 +9,31 @@ function commissionFor(authorId) {
   return Math.min(Math.max(isNaN(pct) ? 30 : pct, 0), 100);
 }
 
+// A printed-book shipment "clears" (its royalties become withdrawable) once delivered,
+// or automatically N days after it was marked shipped.
+function clearedSql(alias = 'sh') {
+  const days = Math.max(0, Number(getSettings().royalty_hold_days) || 14);
+  return `(${alias}.status = 'delivered' OR (${alias}.status = 'shipped' AND ${alias}.shipped_at <= datetime('now', '-${days} days')))`;
+}
+
 /** Royalty position of an author, all in kobo. */
 function authorBalance(authorId) {
-  const earned = db.prepare(`SELECT COALESCE(SUM(oi.author_earning_kobo),0) v FROM order_items oi JOIN orders o ON o.id = oi.order_id
-    WHERE oi.author_id = ? AND o.status = 'paid'`).get(authorId).v;
+  const C = clearedSql('sh');
+  const itemEarned = db.prepare(`SELECT COALESCE(SUM(oi.author_earning_kobo),0) v FROM order_items oi JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN shipments sh ON sh.id = oi.shipment_id
+    WHERE oi.author_id = ? AND o.status = 'paid' AND (oi.shipment_id IS NULL OR ${C})`).get(authorId).v;
+  const shipEarned = db.prepare(`SELECT COALESCE(SUM(sh.author_shipping_kobo),0) v FROM shipments sh JOIN orders o ON o.id = sh.order_id
+    WHERE sh.author_id = ? AND o.status = 'paid' AND ${C}`).get(authorId).v;
+  const pendingItems = db.prepare(`SELECT COALESCE(SUM(oi.author_earning_kobo),0) v FROM order_items oi JOIN orders o ON o.id = oi.order_id
+    JOIN shipments sh ON sh.id = oi.shipment_id
+    WHERE oi.author_id = ? AND o.status = 'paid' AND sh.status != 'cancelled' AND NOT ${C}`).get(authorId).v;
+  const pendingShip = db.prepare(`SELECT COALESCE(SUM(sh.author_shipping_kobo),0) v FROM shipments sh JOIN orders o ON o.id = sh.order_id
+    WHERE sh.author_id = ? AND o.status = 'paid' AND sh.status != 'cancelled' AND NOT ${C}`).get(authorId).v;
+  const earned = itemEarned + shipEarned;
+  const pending = pendingItems + pendingShip;
   const paid = db.prepare(`SELECT COALESCE(SUM(amount_kobo),0) v FROM payouts WHERE author_id = ? AND status = 'paid'`).get(authorId).v;
   const requested = db.prepare(`SELECT COALESCE(SUM(amount_kobo),0) v FROM payouts WHERE author_id = ? AND status = 'requested'`).get(authorId).v;
-  return { earned, paid, requested, available: earned - paid - requested };
+  return { earned, pending, paid, requested, available: earned - paid - requested };
 }
 
 /** Create a payout request for the author's full available balance, if allowed. Returns payout id or null. */
@@ -47,6 +65,9 @@ function markPaid(orderId, { note = null, opayOrderNo = null } = {}) {
       FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?`).all(orderId);
     const upd = db.prepare('UPDATE order_items SET file_password = COALESCE(file_password, ?), author_id = ?, commission_pct = ?, author_earning_kobo = ? WHERE id = ?');
     const sold = db.prepare('UPDATE products SET sales_count = sales_count + 1 WHERE id = ?');
+    const destock = db.prepare("UPDATE products SET stock = MAX(COALESCE(stock,0) - 1, 0) WHERE id = ? AND format = 'print'");
+    db.prepare("UPDATE shipments SET status = 'processing' WHERE order_id = ? AND status = 'awaiting_payment'").run(orderId);
+    db.prepare('SELECT author_id FROM shipments WHERE order_id = ? AND author_id IS NOT NULL').all(orderId).forEach(r => authorsTouched.add(r.author_id));
     for (const it of items) {
       let pct = null, earning = 0;
       if (it.author_id && !isTest) {
@@ -55,7 +76,7 @@ function markPaid(orderId, { note = null, opayOrderNo = null } = {}) {
         authorsTouched.add(it.author_id);
       }
       upd.run(makePassword(8), it.author_id || null, pct, earning, it.id);
-      if (!isTest) sold.run(it.product_id);
+      if (!isTest) { sold.run(it.product_id); destock.run(it.product_id); }
     }
     return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   });
@@ -117,9 +138,28 @@ function reassignProduct(productId, newAuthorId) {
 }
 
 /** Product IDs the user already owns (paid). */
-function ownedProductIds(userId) {
-  return new Set(db.prepare(`SELECT oi.product_id FROM order_items oi JOIN orders o ON o.id = oi.order_id
-    WHERE o.user_id = ? AND o.status = 'paid'`).all(userId).map(r => r.product_id));
+function ownedProductIds(userId, { includePrint = true } = {}) {
+  return new Set(db.prepare(`SELECT oi.product_id FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN products p ON p.id = oi.product_id
+    WHERE o.user_id = ? AND o.status = 'paid' ${includePrint ? '' : "AND p.format != 'print'"}`).all(userId).map(r => r.product_id));
+}
+
+/** Update a shipment's status (by the seller, admin or buyer). Returns the updated row. */
+function updateShipment(id, { status, courier, tracking, note }) {
+  const sh = db.prepare('SELECT * FROM shipments WHERE id = ?').get(id);
+  if (!sh) throw new Error('Shipment not found');
+  const allowed = { processing: ['shipped', 'delivered', 'cancelled'], shipped: ['delivered', 'shipped'], delivered: [], awaiting_payment: ['cancelled'], cancelled: [] };
+  if (status && status !== sh.status && !(allowed[sh.status] || []).includes(status)) throw new Error(`Cannot change a ${sh.status} shipment to ${status}.`);
+  if (status === 'shipped' && sh.method !== 'pickup' && !(courier || sh.courier)) throw new Error('Enter the courier or transport company.');
+  db.prepare(`UPDATE shipments SET status = COALESCE(?, status), courier = COALESCE(?, courier), tracking = COALESCE(?, tracking), note = COALESCE(?, note),
+    shipped_at = CASE WHEN ? = 'shipped' AND shipped_at IS NULL THEN datetime('now') ELSE shipped_at END,
+    delivered_at = CASE WHEN ? = 'delivered' THEN datetime('now') ELSE delivered_at END WHERE id = ?`)
+    .run(status || null, courier || null, tracking || null, note || null, status || '', status || '', id);
+  if (status === 'cancelled' && sh.status === 'processing') {
+    // Put the copies back in stock
+    db.prepare(`UPDATE products SET stock = COALESCE(stock,0) + 1 WHERE id IN (SELECT product_id FROM order_items WHERE shipment_id = ?)`).run(id);
+  }
+  if (status === 'delivered' && sh.author_id) maybeAutoPayout(sh.author_id);
+  return db.prepare('SELECT * FROM shipments WHERE id = ?').get(id);
 }
 
 /** Recompute a product's rating from visible reviews. */
@@ -128,4 +168,4 @@ function refreshRating(productId) {
   db.prepare('UPDATE products SET rating_avg = ?, rating_count = ? WHERE id = ?').run(Math.round(r.a * 10) / 10, r.n, productId);
 }
 
-module.exports = { reassignProduct, productSales, maybeAutoPayout, markPaid, ownedProductIds, commissionFor, authorBalance, requestPayout, refreshRating };
+module.exports = { updateShipment, clearedSql, reassignProduct, productSales, maybeAutoPayout, markPaid, ownedProductIds, commissionFor, authorBalance, requestPayout, refreshRating };

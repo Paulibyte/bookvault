@@ -9,7 +9,9 @@
     <% if (p.rating_count) { %><%- include('stars', { r: p.rating_avg, n: p.rating_count }) %><% } else if (p.sales_count) { %><span class="small muted"><%= p.sales_count %> sold</span><% } %>
     <div class="foot">
       <span class="price"><%= p.price_kobo ? naira(p.price_kobo) : 'Free' %></span>
-      <% if (owned.has(p.id)) { %>
+      <% if (p.format === 'print' && !(p.stock > 0)) { %>
+        <span class="small stock-out">Out of stock</span>
+      <% } else if (owned.has(p.id)) { %>
         <a class="btn sm green" href="/library">Owned</a>
       <% } else if (cart.has(p.id)) { %>
         <a class="btn sm ghost" href="/cart">In cart</a>

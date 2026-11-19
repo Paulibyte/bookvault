@@ -1,0 +1,20 @@
+<%- include('../partials/head') %>
+<% const awaitingCount = locals.awaitingCount || 0; %>
+<div class="admin">
+  <aside class="side">
+    <a href="/admin" class="<%= path === '/admin' || path === '/admin/' ? 'active' : '' %>">📊 Dashboard</a>
+    <a href="/admin/orders" class="<%= path.startsWith('/admin/orders') ? 'active' : '' %>">🧾 Orders<% if (awaitingCount) { %><span class="pill"><%= awaitingCount %></span><% } %></a>
+    <a href="/admin/products" class="<%= path.startsWith('/admin/products') ? 'active' : '' %>">📚 Products<% if (locals.reviewCount) { %><span class="pill"><%= reviewCount %></span><% } %></a>
+    <a href="/admin/shipments" class="<%= path.startsWith('/admin/shipments') ? 'active' : '' %>">🚚 Shipments<% if (locals.shipCount) { %><span class="pill"><%= shipCount %></span><% } %></a>
+    <a href="/admin/authors" class="<%= path.startsWith('/admin/authors') ? 'active' : '' %>">✍️ Authors<% if (locals.authorCount) { %><span class="pill"><%= authorCount %></span><% } %></a>
+    <a href="/admin/payouts" class="<%= path.startsWith('/admin/payouts') ? 'active' : '' %>">💰 Payouts<% if (locals.payoutCount) { %><span class="pill"><%= payoutCount %></span><% } %></a>
+    <a href="/admin/reviews" class="<%= path.startsWith('/admin/reviews') ? 'active' : '' %>">⭐ Reviews</a>
+    <a href="/admin/users" class="<%= path.startsWith('/admin/users') ? 'active' : '' %>">👥 Customers</a>
+    <a href="/admin/settings" class="<%= path.startsWith('/admin/settings') ? 'active' : '' %>">⚙️ Settings</a>
+    <div class="sep"></div>
+    <a href="/admin/products/new">＋ Add book</a>
+    <a href="/admin/products/new?kind=software">＋ Add software</a>
+    <a href="/" target="_blank">↗ View store</a>
+  </aside>
+  <main>
+    <%- include('../partials/flash') %>

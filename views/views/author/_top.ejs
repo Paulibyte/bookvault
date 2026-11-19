@@ -1,0 +1,17 @@
+<%- include('../partials/head') %>
+<main class="page wrap">
+  <div class="spread" style="margin-bottom:1rem">
+    <div class="row">
+      <% if (author.photo_file) { %><img src="/avatar/<%= author.photo_file %>" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover"><% } %>
+      <div><h1 style="margin:0;font-size:1.5rem"><%= author.pen_name %> <span class="badge verified">✓ Verified author</span></h1><a class="small" href="/authors/<%= author.id %>">View public page</a></div>
+    </div>
+    <a class="btn accent" href="/author/books/new">＋ Submit a title</a>
+  </div>
+  <div class="tabs-inline">
+    <a class="chip <%= path === '/author/dashboard' ? 'on' : '' %>" href="/author/dashboard">📊 Sales</a>
+    <a class="chip <%= path.startsWith('/author/books') ? 'on' : '' %>" href="/author/books">📚 My titles</a>
+    <a class="chip <%= path === '/author/shipments' ? 'on' : '' %>" href="/author/shipments">🚚 To ship<%= locals.toShip ? ' (' + toShip + ')' : '' %></a>
+    <a class="chip <%= path === '/author/payouts' ? 'on' : '' %>" href="/author/payouts">💰 Royalties</a>
+    <a class="chip <%= path === '/author/profile' ? 'on' : '' %>" href="/author/profile">👤 Profile</a>
+  </div>
+  <%- include('../partials/flash') %>

@@ -58,13 +58,13 @@ async function stampFor(item, settings) {
 
 const ITEM_SQL = `
     SELECT oi.*, o.reference, o.paid_at, o.created_at AS order_date, u.full_name, u.email, u.phone,
-           p.title, p.stored_file, p.original_name, p.file_type, p.protect, p.kind, p.reader_pdf
+           p.title, p.stored_file, p.original_name, p.file_type, p.protect, p.kind, p.reader_pdf, p.format
     FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN users u ON u.id = o.user_id
     JOIN products p ON p.id = oi.product_id WHERE oi.id = ?`;
 
 /** Can this item be opened in the in-app reader? */
 function isReadable(p) {
-  return p.kind !== 'software' && (p.file_type === 'pdf' || (p.file_type === 'docx' && !!p.reader_pdf));
+  return p.kind !== 'software' && p.format !== 'print' && (p.file_type === 'pdf' || (p.file_type === 'docx' && !!p.reader_pdf));
 }
 
 /** Personalised, password-protected PDF used by the in-app reader. */

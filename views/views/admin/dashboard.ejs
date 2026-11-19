@@ -1,0 +1,38 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0">Dashboard</h1><a class="btn accent" href="/admin/products/new">＋ Add product</a></div>
+<% warnings.forEach(function(w){ %><div class="warnbar">⚠️ <%= w %> <a href="<%= /title/.test(w) ? '/admin/products?f=review' : /application/.test(w) ? '/admin/authors?status=pending' : /payout/.test(w) ? '/admin/payouts' : /shipment/.test(w) ? '/admin/shipments' : '/admin/settings' %>">Open</a></div><% }) %>
+<div class="kpis">
+  <div class="card kpi hl"><div class="k">Total revenue</div><div class="v"><%= naira(stats.revenue) %></div></div>
+  <div class="card kpi"><div class="k">This month</div><div class="v"><%= naira(stats.revenueMonth) %></div></div>
+  <a class="card kpi <%= stats.awaiting ? 'warn' : '' %>" href="/admin/orders?status=awaiting_confirmation" style="text-decoration:none;color:inherit"><div class="k">To confirm</div><div class="v"><%= stats.awaiting %></div></a>
+  <div class="card kpi"><div class="k">Paid orders</div><div class="v"><%= stats.paidOrders %></div></div>
+  <div class="card kpi"><div class="k">Customers</div><div class="v"><%= stats.customers %></div></div>
+  <div class="card kpi"><div class="k">Downloads</div><div class="v"><%= stats.downloads %></div></div>
+</div>
+<div class="two">
+  <div class="card">
+    <div class="spread"><h2 style="margin:0">Sales — last 14 days</h2><span class="muted small"><%= naira(days.reduce(function(s,d){return s+d.v},0)) %></span></div>
+    <% const max = Math.max.apply(null, days.map(function(d){return d.v})) || 1; %>
+    <div class="bars"><% days.forEach(function(d){ %><div class="b" style="height:<%= Math.max(2, Math.round(d.v / max * 100)) %>%" title="<%= d.d %>: <%= naira(d.v) %>"></div><% }) %></div>
+    <div class="bars-x"><% days.forEach(function(d,i){ %><span><%= i % 2 === 0 ? d.d.slice(8) : '' %></span><% }) %></div>
+  </div>
+  <div class="card">
+    <h2>Best sellers</h2>
+    <% if (!top.length) { %><p class="muted">No sales yet.</p><% } %>
+    <table><tbody><% top.forEach(function(t){ %><tr><td><%= t.title %></td><td class="num muted"><%= t.n %> sold</td><td class="num"><%= naira(t.v) %></td></tr><% }) %></tbody></table>
+  </div>
+</div>
+<div class="card" style="margin-top:1.25rem">
+  <div class="spread"><h2 style="margin:0">Bank transfers waiting for you</h2><a href="/admin/orders?status=awaiting_confirmation" class="small">See all</a></div>
+  <% if (!awaiting.length) { %><p class="muted" style="margin:.8rem 0 0">All caught up ✓</p><% } else { %>
+  <div class="table-wrap"><table><thead><tr><th>Order</th><th>Buyer</th><th>Paid by</th><th class="num">Amount</th><th></th></tr></thead><tbody>
+  <% awaiting.forEach(function(o){ %><tr><td class="mono"><%= o.reference %></td><td><%= o.full_name %></td><td><%= o.bank_sender_name %></td><td class="num"><%= naira(o.total_kobo) %></td><td class="num"><a class="btn sm" href="/admin/orders/<%= o.id %>">Review</a></td></tr><% }) %>
+  </tbody></table></div><% } %>
+</div>
+<div class="card" style="margin-top:1.25rem">
+  <h2>Recent orders</h2>
+  <div class="table-wrap"><table><tbody>
+  <% recent.forEach(function(o){ %><tr><td class="mono"><a href="/admin/orders/<%= o.id %>"><%= o.reference %></a></td><td><%= o.full_name %></td><td><%= o.method === 'opay' ? 'OPay' : 'Bank' %></td><td class="num"><%= naira(o.total_kobo) %></td><td><span class="status <%= o.status %>"><%= o.status.replace('_',' ') %></span></td></tr><% }) %>
+  </tbody></table></div>
+</div>
+<%- include('_bottom') %>

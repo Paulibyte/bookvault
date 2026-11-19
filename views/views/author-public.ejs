@@ -1,0 +1,12 @@
+<%- include('partials/head') %>
+<main class="page wrap">
+  <div class="card row" style="gap:1.2rem;align-items:center">
+    <% if (a.photo_file) { %><img src="/avatar/<%= a.photo_file %>" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover"><% } else { %><div class="brand-mark" style="width:96px;height:96px;border-radius:50%;background:var(--ink);color:#fff;font-size:2rem;font-weight:700"><%= a.pen_name.charAt(0) %></div><% } %>
+    <div class="grow"><h1 style="margin:0"><%= a.pen_name %> <span class="badge verified" title="Verified author">✓ Verified author</span></h1>
+      <% if (a.institution) { %><div class="muted"><%= a.institution %></div><% } %>
+      <% if (a.bio) { %><p class="desc" style="margin:.6rem 0 0"><%= a.bio %></p><% } %></div>
+  </div>
+  <h2 style="margin-top:2rem"><%= products.length %> title<%= products.length === 1 ? '' : 's' %></h2>
+  <div class="grid"><% products.forEach(function(p){ %><%- include('partials/card', { p: p, owned: owned, cart: cart, ranks: ranks }) %><% }) %></div>
+</main>
+<%- include('partials/foot') %>

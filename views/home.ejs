@@ -7,7 +7,7 @@
       <p>Engineering tools, utilities and course software — buy once, download any time from your library.</p>
     <% } else { %>
       <h1>Your course textbooks, delivered in minutes.</h1>
-      <p><%= settings.store_tagline %></p>
+      <p><%= settings.store_tagline %> Printed copies delivered across Nigeria.</p>
     <% } %>
     <form class="search" action="/" method="get">
       <% if (sw) { %><input type="hidden" name="kind" value="software"><% } %>
@@ -25,6 +25,7 @@
       <% if (!sw) { %>
       <a class="chip <%= type === 'pdf' ? 'on' : '' %>" href="/?type=pdf">PDF</a>
       <a class="chip <%= type === 'docx' ? 'on' : '' %>" href="/?type=docx">Word</a>
+      <a class="chip <%= type === 'print' ? 'on' : '' %>" href="/?type=print">📦 Printed books</a>
       <a class="chip <%= type === 'zip' ? 'on' : '' %>" href="/?type=zip">Packs</a>
       <% } %>
     </div>

@@ -8,7 +8,8 @@
   <div class="layout-2">
     <div class="stack">
       <% if (o.status === 'paid') { %>
-        <div class="card"><h2>Payment confirmed 🎉</h2><p>Your files are ready in your library, each with its own password.</p><a class="btn green" href="/library">Go to My Library</a></div>
+        <div class="card"><h2>Payment confirmed 🎉</h2>
+          <% if (o.items.some(function(i){ return i.format !== 'print'; })) { %><p>Your digital files are ready in your library, each with its own password.</p><a class="btn green" href="/library">Go to My Library</a><% } else { %><p style="margin:0">Your printed books are being prepared for delivery. Track them below.</p><% } %></div>
       <% } else if (o.status === 'cancelled') { %>
         <div class="card"><p>This order was cancelled.</p><a class="btn" href="/">Back to store</a></div>
       <% } else if (o.method === 'opay') { %>
@@ -47,12 +48,35 @@
           </form>
         </div>
       <% } %>
+      <% if (o.shipments.length) { %>
+      <div class="card stack">
+        <h2>Delivery</h2>
+        <p class="small muted" style="margin:0">To <strong><%= o.ship_name %></strong> · <%= o.ship_phone %><br><%= [o.ship_address, o.ship_landmark, o.ship_city, o.ship_state === 'FCT' ? 'Abuja (FCT)' : o.ship_state].filter(Boolean).join(', ') %></p>
+        <% o.shipments.forEach(function(sh, i){ const steps = ['processing','shipped','delivered']; const at = steps.indexOf(sh.status); %>
+        <div class="shipment">
+          <div class="spread"><strong>Parcel <%= i + 1 %><%= o.shipments.length > 1 ? ' of ' + o.shipments.length : '' %> · <%= { doorstep: 'Doorstep delivery', park: 'Bus-park pickup', pickup: 'Collect from seller' }[sh.method] %></strong>
+            <span class="status <%= sh.status === 'delivered' ? 'paid' : sh.status === 'cancelled' ? 'cancelled' : 'awaiting_confirmation' %>"><%= { awaiting_payment: 'awaiting payment', processing: 'preparing', shipped: sh.method === 'pickup' ? 'ready for pickup' : 'on the way', delivered: 'delivered', cancelled: 'cancelled' }[sh.status] %></span></div>
+          <div class="small muted"><%= sh.items.map(function(x){ return x.title; }).join(', ') %> · from <%= sh.origin_city ? sh.origin_city + ', ' : '' %><%= sh.origin_state %><%= sh.pen_name ? ' (' + sh.pen_name + ')' : '' %></div>
+          <% if (sh.status !== 'cancelled' && sh.status !== 'awaiting_payment') { %>
+          <ol class="track"><% steps.forEach(function(st, k){ %><li class="<%= k <= at ? 'done' : '' %>"><%= { processing: 'Preparing', shipped: sh.method === 'pickup' ? 'Ready' : 'Shipped', delivered: 'Received' }[st] %></li><% }) %></ol>
+          <% } %>
+          <% if (sh.courier || sh.tracking) { %><div class="small"><strong><%= sh.courier || '' %></strong><% if (sh.tracking) { %> · Tracking / waybill no: <span class="mono"><%= sh.tracking %></span><% } %></div><% } %>
+          <% if (sh.note) { %><div class="small muted">Seller note: <%= sh.note %></div><% } %>
+          <% if (sh.method === 'pickup' && o.status === 'paid') { %><div class="small">Pickup: <%= sh.seller_pickup || settings.store_pickup_address || 'the seller will call you to arrange collection' %><%= sh.seller_phone ? ' · ' + sh.seller_phone : '' %></div><% } %>
+          <% if (sh.status === 'shipped' && o.user_id === user.id) { %>
+          <form method="post" action="/order/<%= o.reference %>/shipments/<%= sh.id %>/received" data-confirm="Confirm you have received this parcel?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm green">✓ I've received it</button></form>
+          <% } %>
+        </div>
+        <% }) %>
+      </div>
+      <% } %>
     </div>
     <div class="card">
       <h3>Items</h3>
       <% o.items.forEach(function(it){ %>
         <div class="line"><%- include('partials/thumb', { p: it }) %><div class="grow small"><strong><%= it.title %></strong></div><div><%= naira(it.price_kobo) %></div></div>
       <% }) %>
+      <% if (o.shipping_kobo) { %><div class="spread small" style="margin-top:.6rem"><span class="muted">Delivery</span><span><%= naira(o.shipping_kobo) %></span></div><% } %>
       <div class="spread" style="margin-top:.8rem"><strong>Total</strong><span class="price"><%= naira(o.total_kobo) %></span></div>
       <% if (o.status === 'pending') { %>
       <form method="post" action="/order/<%= o.reference %>/cancel" style="margin-top:1rem" data-confirm="Cancel this order?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm ghost">Cancel order</button></form>

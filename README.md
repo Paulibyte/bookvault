@@ -42,6 +42,19 @@ Sell PDF textbooks, Word handouts and ZIP packs to students. Every PDF and Word 
   - Minimum payout (default ₦5,000)
   - Turn author sign-ups and reviews on or off
 
+**Printed books & delivery across Nigeria**
+- Admin and authors can list **printed books** with stock, weight per copy, condition and ship-from location. No file is needed, just a cover photo.
+- Buyers enter a delivery address and state, then pick from three options:
+  - **Doorstep delivery**
+  - **Bus-park pickup (waybill)**
+  - **Collect from seller** (only offered when the seller is in the buyer's state)
+- **How delivery is priced:** you set the rates in *Settings → Printed books & delivery*. Prices depend on whether the buyer is in the **same state** as the seller, the **same geopolitical zone**, or **elsewhere in Nigeria**, plus a charge per extra kg.
+- **Parcels:** a cart with books from different sellers becomes one parcel per seller, each priced separately.
+- **Who ships:** each author ships their own parcels from *Author → To ship*, entering the courier and tracking/waybill number, and keeps the delivery fee. The store ships its own stock from *Admin → Shipments*.
+- **Tracking:** buyers follow each parcel (Preparing → Shipped → Received) on their order page and tap **I've received it** when it arrives.
+- **Royalties on printed books are held** until the buyer confirms receipt, or for 14 days after shipping (adjustable). Authors only get paid for books that were actually sent.
+- **Stock:** stock goes down on payment. Sold-out books can't be bought and are removed from carts. Cancelling a shipment returns the copy to stock; you refund the buyer manually.
+
 **File rules**
 | Uploaded as | What the buyer gets |
 |---|---|

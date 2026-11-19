@@ -1,0 +1,4 @@
+<div class="cover <%= p.kind === 'software' ? 'sw' : '' %>">
+  <% if (p.cover_file) { %><img src="/cover/<%= p.cover_file %>" alt="<%= p.title %>" loading="lazy"><% } else { %><div class="ph"><%= p.title %></div><% } %>
+  <% if (typeof showBadge !== 'undefined' && showBadge) { %><span class="badge <%= p.format === 'print' ? 'print' : (p.kind === 'software' ? 'software' : p.file_type) %>"><%= p.format === 'print' ? '📦 print' : (p.kind === 'software' ? 'app' : (p.file_type === 'other' ? 'file' : p.file_type)) %></span><% } %>
+</div>

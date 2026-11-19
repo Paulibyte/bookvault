@@ -1,0 +1,12 @@
+<%- include('partials/head') %>
+<main class="page wrap">
+  <div class="spread"><h1>Saved on this device</h1><a class="btn sm ghost" href="/library">My Library</a></div>
+  <p class="muted" id="netState">Books you save with <strong>Save offline</strong> in the reader open here even without internet.</p>
+  <div class="lib" id="shelf"></div>
+  <div class="card empty" id="shelfEmpty" hidden>
+    <h2>No books saved yet</h2>
+    <p>Open a book from your library and tap <strong>⤓ Save offline</strong> at the top of the reader.</p>
+  </div>
+</main>
+<script src="/js/offline.js?v=5" defer></script>
+<%- include('partials/foot') %>

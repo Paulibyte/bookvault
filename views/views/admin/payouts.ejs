@@ -1,0 +1,35 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0">Royalty payouts</h1><span class="small muted">Minimum payout: <%= naira(minPayout) %> · <a href="/admin/settings#authors">change</a></span></div>
+<div class="tabs-inline">
+  <% [['requested','To pay' + (payoutCount ? ' (' + payoutCount + ')' : '')],['paid','Paid'],['rejected','Rejected'],['all','All']].forEach(function(t){ %>
+  <a class="chip <%= status === t[0] ? 'on' : '' %>" href="/admin/payouts?status=<%= t[0] %>"><%= t[1] %></a><% }) %>
+</div>
+<div class="card">
+<% if (!payouts.length) { %><div class="empty"><%= status === 'requested' ? 'No payout requests right now ✓' : 'Nothing here.' %></div><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>Author</th><th>Pay to</th><th class="num">Amount</th><th>Requested</th><th>Status</th><th style="min-width:280px"></th></tr></thead>
+<tbody><% payouts.forEach(function(p){ %>
+<tr>
+  <td><a href="/admin/authors/<%= p.author_id %>"><strong><%= p.pen_name %></strong></a><div class="muted small"><%= p.legal_name %> · <%= p.phone %></div></td>
+  <td class="small"><%= p.bank_name %><br><span class="mono" style="font-size:.95rem;font-weight:700"><%= p.bank_account_number %></span><br><%= p.bank_account_name %></td>
+  <td class="num"><strong><%= naira(p.amount_kobo) %></strong></td>
+  <td class="small"><%= p.created_at.slice(0,16) %><div class="muted"><%= p.trigger === 'auto' ? 'Automatic (threshold)' : 'Requested by author' %></div></td>
+  <td><span class="badge <%= p.status === 'paid' ? 'published' : p.status === 'rejected' ? 'rejected' : 'pending' %>"><%= p.status %></span><% if (p.transfer_reference) { %><div class="small mono"><%= p.transfer_reference %></div><% } %></td>
+  <td>
+    <% if (p.status === 'requested') { %>
+    <form method="post" action="/admin/payouts/<%= p.id %>/paid" class="row" style="gap:.4rem" data-confirm="Confirm you have transferred <%= naira(p.amount_kobo) %> to <%= p.bank_account_name %>?">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="text" name="reference" placeholder="Transfer ref" required style="width:140px;padding:.45rem .6rem"><button class="btn sm green">Mark paid</button></form>
+    <form method="post" action="/admin/payouts/<%= p.id %>/reject" class="row" style="gap:.4rem;margin-top:.4rem">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="text" name="note" placeholder="Reason (e.g. wrong account name)" style="width:200px;padding:.45rem .6rem"><button class="btn sm ghost">Reject</button></form>
+    <% } else if (p.admin_note) { %><span class="small muted"><%= p.admin_note %></span><% } %>
+  </td>
+</tr><% }) %></tbody></table></div><% } %>
+</div>
+<% if (owed.length) { %>
+<div class="card" style="margin-top:1.25rem">
+  <h2>Balances owed to authors</h2>
+  <p class="small muted">Royalties earned but not yet requested. Authors are paid when they request, or automatically once they reach <%= naira(minPayout) %> with auto-payout on.</p>
+  <table><tbody><% owed.forEach(function(a){ %><tr><td><a href="/admin/authors/<%= a.id %>"><%= a.pen_name %></a></td><td class="num"><%= naira(a.bal.available) %></td><td class="small muted"><%= a.bal.available >= minPayout ? 'Above threshold' : 'Below threshold' %><%= a.bank_account_number ? '' : ' · no bank details' %></td></tr><% }) %></tbody></table>
+</div>
+<% } %>
+<%- include('_bottom') %>

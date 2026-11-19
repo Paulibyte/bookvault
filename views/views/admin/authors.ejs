@@ -1,0 +1,20 @@
+<%- include('_top') %>
+<div class="section-title"><h1 style="margin:0">Authors</h1><span class="small muted">Default commission: <strong><%= defaultPct %>%</strong> to the store · <a href="/admin/settings#authors">change</a></span></div>
+<div class="tabs-inline">
+  <% [['','All'],['pending','Awaiting verification'],['verified','Verified'],['rejected','Rejected'],['suspended','Suspended']].forEach(function(t){ %>
+  <a class="chip <%= status === t[0] ? 'on' : '' %>" href="/admin/authors<%= t[0] ? '?status=' + t[0] : '' %>"><%= t[1] %></a><% }) %>
+</div>
+<div class="card">
+<% if (!authors.length) { %><div class="empty">No authors yet. Share <strong>/author</strong> with lecturers who want to publish.</div><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>Author</th><th>Contact</th><th>Status</th><th class="num">Titles</th><th class="num">Sold</th><th class="num">Royalties earned</th><th class="num">Commission</th><th></th></tr></thead>
+<tbody><% authors.forEach(function(a){ %>
+<tr><td><strong><%= a.pen_name %></strong><div class="muted small"><%= a.legal_name %><%= a.institution ? ' · ' + a.institution : '' %></div></td>
+<td class="small"><%= a.email %><br><%= a.phone %></td>
+<td><span class="badge <%= a.status %>"><%= a.status %></span></td>
+<td class="num"><%= a.titles %></td><td class="num"><%= a.sold %></td><td class="num"><%= naira(a.earned) %></td>
+<td class="num"><%= a.commission_pct != null ? a.commission_pct + '%' : defaultPct + '% (default)' %></td>
+<td class="num"><a class="btn sm <%= a.status === 'pending' ? 'accent' : 'ghost' %>" href="/admin/authors/<%= a.id %>"><%= a.status === 'pending' ? 'Verify' : 'Open' %></a></td></tr>
+<% }) %></tbody></table></div><% } %>
+</div>
+<%- include('_bottom') %>
